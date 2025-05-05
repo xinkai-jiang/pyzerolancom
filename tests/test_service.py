@@ -1,6 +1,6 @@
 import multiprocessing as mp
 import time
-from typing import Callable, Dict, List
+from typing import Callable
 
 from utils import random_name
 
@@ -21,11 +21,11 @@ def create_service_callback(service_name: str) -> Callable[[str], str]:
     return service_callback
 
 
-def start_service_node(service_names: List[str]):
+def start_service_node(service_names: list[str]):
     print("Starting service node")
     node_name = random_name("Node")
     node = pylancom.init_node(node_name, "127.0.0.1")
-    service_dict: Dict[str, Service] = {}
+    service_dict: dict[str, Service] = {}
     for service_name in service_names:
         service_dict[service_name] = Service(
             service_name,

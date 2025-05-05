@@ -1,6 +1,6 @@
-__MAJOR__ = int(1)
-__MINOR__ = int(0)
-__PATCH__ = int(0)
+__MAJOR__ = 1
+__MINOR__ = 0
+__PATCH__ = 0
 
 __VERSION__ = f"{__MAJOR__}.{__MINOR__}.{__PATCH__}"
 __VERSION_BYTES__ = bytes([__MAJOR__, __MINOR__, __PATCH__])

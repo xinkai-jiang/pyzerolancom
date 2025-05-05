@@ -49,9 +49,11 @@ def create_heartbeat_message(node_id: str, port: Port, info_id: int) -> bytes:
     )
 
 
-def get_socket_port(socket: zmq.asyncio.Socket) -> int:
+def get_socket_addr(socket: zmq.asyncio.Socket) -> tuple[str, int]:
     endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
-    return int(endpoint.decode().split(":")[-1])
+    return endpoint.decode().split(":")[0], int(
+        endpoint.decode().split(":")[-1]
+    )
 
 
 def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
