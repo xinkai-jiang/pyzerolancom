@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import random
 import time
-from typing import List
 
 import pylancom
 import pylancom.nodes
@@ -46,7 +45,7 @@ def start_node_task(num: int):
 
 
 if __name__ == "__main__":
-    node_tasks: List[mp.Process] = []
+    node_tasks: list[mp.Process] = []
     # test_node_task = mp.Process(target=start_test_node)
     # node_tasks.append(test_node_task)
     # test_node_task.start()

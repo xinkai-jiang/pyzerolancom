@@ -1,7 +1,6 @@
 import logging
 import multiprocessing as mp
 import time
-from typing import List
 
 from pylancom.lancom_type import IPAddress
 from pylancom.nodes.abstract_node import AbstractNode
@@ -26,7 +25,7 @@ def start_node_task(node_name: str, node_ip: IPAddress):
 
 
 def main():
-    node_tasks: List[mp.Process] = []
+    node_tasks: list[mp.Process] = []
     node_ips = ["127.0.0.1", "127.0.0.2", "127.0.0.3"]
 
     for i, node_ip in enumerate(node_ips):

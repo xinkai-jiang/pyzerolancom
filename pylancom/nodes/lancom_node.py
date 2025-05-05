@@ -3,41 +3,22 @@ from __future__ import annotations
 import asyncio
 import socket
 import traceback
-from typing import Callable, Dict, Optional, cast
+from typing import Callable, cast
 
 import msgpack
 import zmq.asyncio
 
-from ..lancom_type import IPAddress, LanComMsg, NodeInfo, NodeReqType
+from ..lancom_type import IPAddress, LanComMsg, NodeReqType
 from ..utils.log import logger
-from ..utils.msg import (
-    create_hash_identifier,
-    create_heartbeat_message,
-    get_socket_port,
-)
-from .abstract_node import AbstractNode
+from ..utils.msg import create_heartbeat_message
+from .lancom_base import LanComNodeBase
 
 
-class LanComNode(AbstractNode):
-    instance: Optional[LanComNode] = None
-
+class LanComNode(LanComNodeBase):
     def __init__(self, node_name: str, node_ip: IPAddress) -> None:
-        if LanComNode.instance is not None:
+        if LanComNodeBase.instance is not None:
             raise Exception("LanComNode has been initialized")
-        LanComNode.instance = self
-        self.node_id = create_hash_identifier()
-        # Initialize the NodeInfo message
-        self.local_info = NodeInfo(
-            name=node_name,
-            nodeID=self.node_id,
-            ip=node_ip,
-            type="LanComNode",
-            infoID=0,
-            port=0,
-            publishers=[],
-            services=[],
-        )
-        self.service_cbs: Dict[str, Callable[[bytes], bytes]] = {}
+        LanComNodeBase.instance = self
         super().__init__(node_name, node_ip)
 
     def create_socket(self, socket_type: int) -> zmq.asyncio.Socket:
@@ -55,12 +36,12 @@ class LanComNode(AbstractNode):
             _socket.setsockopt(
                 socket.IPPROTO_IP,
                 socket.IP_MULTICAST_IF,
-                socket.inet_aton(self.node_ip),
+                socket.inet_aton(self.ip),
             )
-            logger.debug(f"Multicast has been started at {self.node_ip}")
-            while self.running:
+            logger.debug(f"Multicast has been started at {self.ip}")
+            while self._running:
                 msg = create_heartbeat_message(
-                    self.node_id,
+                    self.id,
                     self.local_info["port"],
                     self.local_info["infoID"],
                 )
@@ -76,11 +57,9 @@ class LanComNode(AbstractNode):
     async def service_loop(
         self,
         service_socket: zmq.asyncio.Socket,
-        services: Dict[str, Callable[[bytes], bytes]],
+        services: dict[str, Callable[[bytes], bytes]],
     ) -> None:
-        if self.loop is None:
-            raise Exception("Event loop has not been initialized")
-        while self.running:
+        while self._running:
             try:
                 name_bytes, request = await service_socket.recv_multipart()
             except Exception as e:
@@ -92,8 +71,8 @@ class LanComNode(AbstractNode):
                 continue
             try:
                 result = await asyncio.wait_for(
-                    self.loop.run_in_executor(
-                        self.executor, services[service_name], request
+                    self.loop_manager.run_in_executor(
+                        services[service_name], request
                     ),
                     timeout=2.0,
                 )
@@ -114,23 +93,23 @@ class LanComNode(AbstractNode):
 
     def initialize_event_loop(self):
         node_socket = self.create_socket(zmq.REP)
-        node_socket.bind(f"tcp://{self.node_ip}:0")
-        self.local_info["port"] = get_socket_port(node_socket)
+        node_socket.bind(f"tcp://{self.ip}:0")
         self.pub_socket = self.create_socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{self.node_ip}:0")
-        self.nodes_map.update_node(self.node_id, self.local_info)
+        self.pub_socket.bind(f"tcp://{self.ip}:0")
+        self.nodes_map.update_node(self.id, self.local_info)
         node_service_cbs = {
             NodeReqType.PING.value: lambda x: LanComMsg.SUCCESS.value,
             NodeReqType.NODE_INFO.value: self.node_info_cbs,
         }
-        self.submit_loop_task(self.service_loop(node_socket, node_service_cbs))
+        self.loop_manager.submit_loop_task(
+            self.service_loop(node_socket, node_service_cbs)
+        )
         self.service_socket = self.create_socket(zmq.REP)
-        self.service_socket.bind(f"tcp://{self.node_ip}:0")
-        self.submit_loop_task(
+        self.service_socket.bind(f"tcp://{self.ip}:0")
+        self.loop_manager.submit_loop_task(
             self.service_loop(self.service_socket, self.service_cbs)
         )
-        self.submit_loop_task(self.multicast_loop())
-        super().initialize_event_loop()
+        self.loop_manager.submit_loop_task(self.multicast_loop())
 
     def node_info_cbs(self, request: bytes) -> bytes:
         return cast(bytes, msgpack.dumps(self.local_info))
