@@ -3,113 +3,130 @@ from __future__ import annotations
 import asyncio
 import socket
 import traceback
-from typing import Callable, cast
+from typing import Optional
 
 import msgpack
 import zmq.asyncio
 
-from ..lancom_type import IPAddress, LanComMsg, NodeReqType
+from ..utils.lancom_type import IPAddress, LanComMsg
 from ..utils.log import logger
-from ..utils.msg import create_heartbeat_message
-from .lancom_base import LanComNodeBase
+from ..utils.msg import create_heartbeat_message, create_hash_identifier
+from .loop_manager import LanComLoopManager
+from ..utils.lancom_type import NodeInfo
+from .nodes_info_manager import NodesInfoManager
+
+class LocalNodeInfo:
+    
+    def __init__(self, name: str, ip: IPAddress) -> None:
+        self.name = name
+        self.node_id = create_hash_identifier()
+        self.ip = ip
+        self._node_info: NodeInfo
+
+    def create_heartbeat_message() -> bytes:
+            return b"".join(
+        [
+            b"LANCOM",  # 6-byte header
+            __VERSION_BYTES__,  # 3-byte version
+            node_id.encode(),  # 36-byte NodeID
+            port.to_bytes(2, "big"),  # 2-byte port
+            info_id.to_bytes(4, "big"),  # 4-byte timestamp
+        ]
+    )
+    
+    def register_service(
+        self,
+        service_name: str
+    ) -> None:
+        pass
+    
+    def register_publisher(
+        self,
+        topic_name: str,
+    ) -> None:
+        pass
 
 
-class LanComNode(LanComNodeBase):
-    def __init__(self, node_name: str, node_ip: IPAddress) -> None:
-        if LanComNodeBase.instance is not None:
-            raise Exception("LanComNode has been initialized")
-        LanComNodeBase.instance = self
-        super().__init__(node_name, node_ip)
+class LanComNodeBase:
+    instance: Optional[LanComNodeBase] = None
+
+    def __init__(
+        self,
+        node_name: str,
+        node_ip: IPAddress,
+        group: IPAddress = "224.0.0.1",
+        group_port: int = 7720,
+        interval: float = 1.0,
+    ) -> None:
+        super().__init__()
+        self.node_ip = node_ip
+        self.group = group
+        self.group_port = group_port
+        self.interval = interval
+        self._local_info: LocalNodeInfo = LocalNodeInfo(
+            node_name,
+            create_hash_identifier(),
+            node_ip,
+        )
+        self.zmq_context: zmq.asyncio.Context = zmq.asyncio.Context()
+        self.nodes_manager: NodesInfoManager = NodesInfoManager()
+        self.loop_manager: LanComLoopManager = LanComLoopManager()
+        self._running: bool = False
 
     def create_socket(self, socket_type: int) -> zmq.asyncio.Socket:
         return self.zmq_context.socket(socket_type)
 
     async def multicast_loop(self):
-        """Asynchronously sends multicast messages to announce the node."""
+        """Send heartbeat messages via ZeroMQ multicast (epgm)."""
         try:
-            _socket = socket.socket(
-                socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
-            )
-            _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # _socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            _socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
-            _socket.setsockopt(
-                socket.IPPROTO_IP,
-                socket.IP_MULTICAST_IF,
-                socket.inet_aton(self.ip),
-            )
-            logger.debug(f"Multicast has been started at {self.ip}")
+            # epgm = Encapsulated PGM (reliable multicast)
+            self.socket = self.zmq_context.socket(zmq.PUB)
+            endpoint = f"epgm://{self.node_ip};{self.group}:{self.group_port}"
+            self.socket.bind(endpoint)
+            logger.debug(f"ZMQ multicast started at {endpoint}")
             while self._running:
-                msg = create_heartbeat_message(
-                    self.id,
-                    self.local_info["port"],
-                    self.local_info["infoID"],
-                )
-                _socket.sendto(msg, (self.multicast_addr, self.multicast_port))
-                await asyncio.sleep(1)  # Prevent excessive CPU usage
+                msg = self._local_info.create_heartbeat_message()  # your function
+                # ZMQ expects bytes
+                await self.socket.send(msg)
+                await asyncio.sleep(self.interval)
+
         except Exception as e:
-            logger.error(f"Multicast error: {e}")
+            logger.error(f"ZMQ multicast error: {e}")
             traceback.print_exc()
+
         finally:
-            _socket.close()
-            logger.info("Multicast has been stopped")
+            if self.socket:
+                self.socket.close()
+            logger.info("ZMQ multicast stopped")
 
-    async def service_loop(
-        self,
-        service_socket: zmq.asyncio.Socket,
-        services: dict[str, Callable[[bytes], bytes]],
-    ) -> None:
-        while self._running:
-            try:
-                name_bytes, request = await service_socket.recv_multipart()
-            except Exception as e:
-                logger.error(f"Error occurred when receiving request: {e}")
-                traceback.print_exc()
-            service_name = name_bytes.decode()
-            if service_name not in services.keys():
-                logger.error(f"Service {service_name} is not available")
-                continue
-            try:
-                result = await asyncio.wait_for(
-                    self.loop_manager.run_in_executor(
-                        services[service_name], request
-                    ),
-                    timeout=2.0,
-                )
-                # result = services[service_name](request)
-                # logger.debug(service_name, result)
-                await service_socket.send(result)
-            except asyncio.TimeoutError:
-                logger.error("Timeout: callback function took too long")
-                await service_socket.send(LanComMsg.TIMEOUT.value)
-            except Exception as e:
-                logger.error(
-                    f"One error occurred when processing the Service "
-                    f'"{service_name}": {e}'
-                )
-                traceback.print_exc()
-                await service_socket.send(LanComMsg.ERROR.value)
-        logger.info("Service loop has been stopped")
+    async def multicast_listener_loop(self):
+        """Listen for heartbeat messages via ZeroMQ multicast (epgm)."""
+        try:
+            self.socket = self.zmq_context.socket(zmq.SUB)
+            endpoint = f"epgm://{self.node_ip};{self.group}:{self.group_port}"
+            self.socket.setsockopt_string(zmq.SUBSCRIBE, "")
+            self.socket.bind(endpoint)
+            logger.debug(f"ZMQ multicast listener started at {endpoint}")
+            while self._running:
+                msg = await self.socket.recv()
+                # Process the received heartbeat message
+                # For example, update nodes_manager with the info
+                # You need to implement parse_heartbeat_message
+                node_info = parse_heartbeat_message(msg)
+                self.nodes_manager.update_node_info(node_info)
 
-    def initialize_event_loop(self):
-        node_socket = self.create_socket(zmq.REP)
-        node_socket.bind(f"tcp://{self.ip}:0")
-        self.pub_socket = self.create_socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://{self.ip}:0")
-        self.nodes_map.update_node(self.id, self.local_info)
-        node_service_cbs = {
-            NodeReqType.PING.value: lambda x: LanComMsg.SUCCESS.value,
-            NodeReqType.NODE_INFO.value: self.node_info_cbs,
-        }
-        self.loop_manager.submit_loop_task(
-            self.service_loop(node_socket, node_service_cbs)
-        )
-        self.service_socket = self.create_socket(zmq.REP)
-        self.service_socket.bind(f"tcp://{self.ip}:0")
-        self.loop_manager.submit_loop_task(
-            self.service_loop(self.service_socket, self.service_cbs)
-        )
-        self.loop_manager.submit_loop_task(self.multicast_loop())
+        except Exception as e:
+            logger.error(f"ZMQ multicast listener error: {e}")
+            traceback.print_exc()
 
-    def node_info_cbs(self, request: bytes) -> bytes:
-        return cast(bytes, msgpack.dumps(self.local_info))
+        finally:
+            if self.socket:
+                self.socket.close()
+            logger.info("ZMQ multicast listener stopped")
+
+
+    async def stop_node(self):
+        """Stop the node's operations."""
+        self._running = False
+        await self.loop_manager.stop_node()
+        logger.info("LanCom node has been stopped")
