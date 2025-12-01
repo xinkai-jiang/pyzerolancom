@@ -9,7 +9,7 @@ from typing import Callable, Optional, TypeVar, cast
 import zmq
 import zmq.asyncio
 
-from ..lancom_type import (
+from ..utils.lancom_type import (
     LANCOM_PUB,
     LANCOM_SRV,
     HashIdentifier,

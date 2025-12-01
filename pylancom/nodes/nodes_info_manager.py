@@ -1,39 +1,18 @@
 from __future__ import annotations
 
-import abc
-import asyncio
-import concurrent.futures
-import platform
-import socket
-import struct
-import time
-import traceback
-from asyncio import AbstractEventLoop, get_running_loop
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Coroutine, Dict, List, Optional, Union, cast
+from typing import Dict, List, Optional
 
-import msgpack
-import zmq
-import zmq.asyncio
-
-from zmq.asyncio import Socket as AsyncSocket
-
-from ..config import __COMPATIBILITY__
-from ..lancom_type import (
-    IPAddress,
-    LanComMsg,
+from ..utils.lancom_type import (
     NodeInfo,
-    NodeReqType,
-    Port,
     SocketInfo,
     TopicName,
 )
-from .lancom_socket import Subscriber
+
 from ..utils.log import logger
-from ..utils.msg import send_bytes_request
 
 
-class NodesMap:
+class NodesInfoManager:
+    """Manages information about nodes in the network."""
     def __init__(self):
         self.nodes_info: Dict[str, NodeInfo] = {}
         self.nodes_info_id: Dict[str, int] = {}
@@ -42,15 +21,19 @@ class NodesMap:
         self.services_dict: Dict[str, SocketInfo] = {}
 
     def check_node(self, node_id: str) -> bool:
+        """Check if a node with the given ID exists."""
         return node_id in self.nodes_info
 
     def check_info(self, node_id: str, info_id: int) -> bool:
+        """Check if the info ID for a given node matches the provided info ID."""
         return self.nodes_info_id.get(node_id, "") == info_id
 
     def check_heartbeat(self, node_id: str, info_id: int) -> bool:
+        """Check if the heartbeat for a given node is valid."""
         return self.check_node(node_id) and self.check_info(node_id, info_id)
 
     def update_node(self, node_id: str, node_info: NodeInfo):
+        """Update or add a node's information."""
         if node_id not in self.nodes_info:
             logger.debug(f"Node {node_info['name']} has been registered")
         for pub_info in node_info["pubList"]:
@@ -63,10 +46,12 @@ class NodesMap:
         self.nodes_info_id[node_id] = node_info["infoID"]
 
     def remove_node(self, node_id: str) -> None:
+        """Remove a node's information."""
         self.nodes_info.pop(node_id, None)
         self.nodes_info_id.pop(node_id, None)
 
     def get_publisher_info(self, topic_name: TopicName) -> List[SocketInfo]:
+        """Get a list of publisher socket information for a given topic name."""
         publishers: List[SocketInfo] = []
         for pub_info in self.publishers_dict.values():
             if pub_info["name"] == topic_name:
@@ -74,6 +59,7 @@ class NodesMap:
         return publishers
 
     def get_service_info(self, service_name: str) -> Optional[SocketInfo]:
+        """Get the service socket information for a given service name."""
         for service in self.services_dict.values():
             if service["name"] == service_name:
                 return service

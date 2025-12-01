@@ -1,6 +1,5 @@
 from enum import Enum
-from typing import TypedDict
-
+from typing import TypedDict, List
 import zmq
 import zmq.asyncio
 
@@ -16,12 +15,8 @@ LANCOM_SUB = zmq.SUB
 LANCOM_SRV = zmq.REQ
 
 
-class NodeReqType(Enum):
-    PING = "PING"
-    NODE_INFO = "NODE_INFO"
-
-
 class LanComMsg(Enum):
+    """Enumeration of LanCom message types."""
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
     TIMEOUT = "TIMEOUT"
@@ -29,20 +24,20 @@ class LanComMsg(Enum):
 
 
 class SocketInfo(TypedDict):
+    """Information about a socket."""
     name: str
     socketID: HashIdentifier
     nodeID: HashIdentifier
     type: int
-    ip: IPAddress
-    port: Port
+    address: IPAddress
 
 
 class NodeInfo(TypedDict):
+    """Information about a node."""
     name: str
     nodeID: HashIdentifier
     infoID: int
     ip: IPAddress
-    type: str
-    pubList: list[SocketInfo]
-    subList: list[SocketInfo]
-    srvList: list[SocketInfo]
+    port: Port
+    pubList: List[SocketInfo]
+    srvList: List[SocketInfo]

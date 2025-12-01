@@ -8,7 +8,7 @@ import zmq
 import zmq.asyncio
 
 from ..config import __VERSION_BYTES__
-from ..lancom_type import HashIdentifier, IPAddress, LanComMsg, Port
+from .lancom_type import HashIdentifier, IPAddress, LanComMsg, Port
 from .log import logger
 
 
