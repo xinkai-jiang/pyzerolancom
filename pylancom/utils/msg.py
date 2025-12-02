@@ -3,6 +3,7 @@ import hashlib
 import socket
 import struct
 import uuid
+from typing import Optional
 
 import zmq
 import zmq.asyncio
@@ -49,11 +50,9 @@ def create_heartbeat_message(node_id: str, port: Port, info_id: int) -> bytes:
     )
 
 
-def get_socket_addr(socket: zmq.asyncio.Socket) -> tuple[str, int]:
-    endpoint: bytes = socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
-    return endpoint.decode().split(":")[0], int(
-        endpoint.decode().split(":")[-1]
-    )
+def get_socket_addr(zmq_socket: zmq.asyncio.Socket) -> tuple[str, int]:
+    endpoint: bytes = zmq_socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
+    return endpoint.decode(), int(endpoint.decode().split(":")[-1])
 
 
 def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
@@ -65,8 +64,9 @@ def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
 
 async def send_bytes_request(
     addr: str, service_name: str, bytes_msgs: bytes, timeout: float = 1.0
-) -> bytes:
-    response = LanComMsg.TIMEOUT.value.encode()
+) -> Optional[bytes]:
+    """Send a bytes request to the specified address and return the response."""
+    response = None
     try:
         sock = zmq.asyncio.Context().socket(zmq.REQ)
         sock.connect(addr)
@@ -76,8 +76,8 @@ async def send_bytes_request(
         # Wait for a response with a timeout.
         response = await asyncio.wait_for(sock.recv(), timeout=timeout)
     except asyncio.TimeoutError:
-        logger.error(f"Request {service_name} timed out for {timeout} s.")
+        logger.error("Request %s timed out for %s s.", service_name, timeout)
     finally:
         sock.disconnect(addr)
         sock.close()
-        return response
+    return response

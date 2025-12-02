@@ -10,7 +10,10 @@ logging.addLevelName(REMOTE_LOG_LEVEL_NUM, "REMOTELOG")
 
 
 class CustomLogger(logging.Logger):
+    """Custom logger class to add remote_log method"""
+
     def remote_log(self, message, *args, **kws):
+        """Log a message with REMOTELOG level"""
         if self.isEnabledFor(REMOTE_LOG_LEVEL_NUM):
             self._log(REMOTE_LOG_LEVEL_NUM, message, args, **kws)
 
@@ -39,8 +42,8 @@ class CustomFormatter(logging.Formatter):
 def get_logger():
     """Create and return a custom logger"""
     # logger = logging.getLogger("SimPublisher")
-    logger = CustomLogger("SimPublisher")
-    logger.setLevel(logging.DEBUG)
+    logger_ = CustomLogger("SimPublisher")
+    logger_.setLevel(logging.DEBUG)
 
     # Create console handler and set level
     ch = logging.StreamHandler()
@@ -51,10 +54,10 @@ def get_logger():
     ch.setFormatter(formatter)
 
     # Add handler to logger
-    if not logger.handlers:
-        logger.addHandler(ch)
+    if not logger_.handlers:
+        logger_.addHandler(ch)
 
-    return logger
+    return logger_
 
 
 # Get the logger
