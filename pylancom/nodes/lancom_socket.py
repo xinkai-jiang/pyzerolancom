@@ -6,8 +6,7 @@ from asyncio import sleep as async_sleep
 from json import dumps
 from typing import Callable, Optional, TypeVar, cast
 
-import zmq
-import zmq.asyncio
+from .zmq_socket_manager import ZMQSocketManager
 
 from ..utils.lancom_type import (
     LANCOM_PUB,

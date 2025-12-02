@@ -39,5 +39,5 @@ class NodeInfo(TypedDict):
     infoID: int
     ip: IPAddress
     port: Port
-    pubList: List[SocketInfo]
-    srvList: List[SocketInfo]
+    topics: List[SocketInfo]
+    services: List[SocketInfo]

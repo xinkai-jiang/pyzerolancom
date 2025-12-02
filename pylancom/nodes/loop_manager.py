@@ -32,7 +32,10 @@ class LanComLoopManager(abc.ABC):
         """
         self._loop: Optional[AbstractEventLoop] = None
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._executor.submit(self.spin_task)
         self._running: bool = False
+        while self._loop is None:
+            time.sleep(0.01)
 
     def spin_task(self) -> None:
         """Start the event loop and run it forever."""
@@ -68,7 +71,7 @@ class LanComLoopManager(abc.ABC):
             if self._loop is not None:
                 self._loop.call_soon_threadsafe(self._loop.stop)
         except RuntimeError as e:
-            logger.error(f"One error occurred when stop server: {e}")
+            logger.error("One error occurred when stop server: %s", e)
         assert self._executor is not None
         self._executor.shutdown(wait=False)
 
