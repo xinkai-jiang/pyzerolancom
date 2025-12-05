@@ -1,11 +1,10 @@
 import asyncio
 import logging
 import multiprocessing as mp
-from typing import List
 
 import pytest
 
-from pylancom.lancom_type import IPAddress, NodeInfo
+from pylancom.utils.node_info import IPAddress, NodeInfo
 from pylancom.nodes.abstract_node import AbstractNode
 
 # Configure logging
@@ -48,7 +47,7 @@ def start_node_task(node_name: str, node_ip: IPAddress):
 
 @pytest.mark.asyncio
 async def test_multiple_nodes():
-    node_tasks: List[mp.Process] = []
+    node_tasks: list[mp.Process] = []
     node_ips = ["127.0.0.1", "127.0.0.2", "127.0.0.3"]
 
     for i, node_ip in enumerate(node_ips):
