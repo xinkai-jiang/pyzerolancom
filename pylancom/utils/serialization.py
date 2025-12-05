@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict
+from typing import Any
 
 import msgpack
 
@@ -12,11 +12,11 @@ def StrEncoder(msg: str) -> bytes:
     return msg.encode()
 
 
-def JsonEncoder(msg: Dict) -> bytes:
+def JsonEncoder(msg: dict) -> bytes:
     return json.dumps(msg).encode()
 
 
-def MsgpackEncoder(msg: Dict) -> bytes:
+def MsgpackEncoder(msg: dict) -> bytes:
     result = msgpack.dumps(msg)
     if result is None:
         raise ValueError("Failed to encode message")

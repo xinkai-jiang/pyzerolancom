@@ -1,7 +1,7 @@
 import argparse
 import multiprocessing as mp
 import time
-from typing import Callable, Dict, List
+from typing import Callable
 
 from utils import random_name
 
@@ -20,11 +20,11 @@ def create_subscriber_callback(
     return subscriber_callback
 
 
-def start_node(publisher_list: List[str], subscriber_list: List[str]):
+def start_node(publisher_list: list[str], subscriber_list: list[str]):
     node_name = random_name("Node")
     node = pylancom.init_node(node_name, "127.0.0.1")
-    publisher_dict: Dict[str, Publisher] = {}
-    subscriber_dict: Dict[str, Subscriber] = {}
+    publisher_dict: dict[str, Publisher] = {}
+    subscriber_dict: dict[str, Subscriber] = {}
     for name in publisher_list:
         publisher_dict[name] = Publisher(name)
     for name in subscriber_list:

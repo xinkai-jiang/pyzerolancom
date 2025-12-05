@@ -1,3 +1,4 @@
+# Your original config, but with fixed mypy
 repos:
   - repo: https://github.com/myint/autoflake
     rev: "v2.1.0"
@@ -14,8 +15,16 @@ repos:
       - id: black
         args: ["--line-length=79"]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0  # Use the latest version
+    rev: v4.4.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+  # Fixed mypy configuration
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: "v1.7.1"
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-setuptools
+        args: ["--ignore-missing-imports"]
