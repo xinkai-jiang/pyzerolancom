@@ -8,8 +8,8 @@ from typing import Optional
 import zmq
 import zmq.asyncio
 
-from ..config import __VERSION_BYTES__
-from .node_info import HashIdentifier, IPAddress, LanComMsg, Port
+# from ..config import __VERSION_BYTES__
+from .node_info import HashIdentifier
 from .log import logger
 
 
@@ -29,33 +29,12 @@ def create_sha256(s: str):
     return hashlib.sha256(s.encode()).hexdigest()
 
 
-def create_heartbeat_message(node_id: str, port: Port, info_id: int) -> bytes:
-    """
-    Constructs the full SDP heartbeat message efficiently using join().
-
-    - `node_id`: The generated NodeID.
-    - `version`: A 3-byte version string (default: "001").
-
-    Returns:
-        A complete SDP heartbeat message in bytes.
-    """
-    return b"".join(
-        [
-            b"LANCOM",  # 6-byte header
-            __VERSION_BYTES__,  # 3-byte version
-            node_id.encode(),  # 36-byte NodeID
-            port.to_bytes(2, "big"),  # 2-byte port
-            info_id.to_bytes(4, "big"),  # 4-byte timestamp
-        ]
-    )
-
-
 def get_socket_addr(zmq_socket: zmq.asyncio.Socket) -> tuple[str, int]:
     endpoint: bytes = zmq_socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
     return endpoint.decode(), int(endpoint.decode().split(":")[-1])
 
 
-def calculate_broadcast_addr(ip_addr: IPAddress) -> IPAddress:
+def calculate_broadcast_addr(ip_addr: str) -> str:
     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional
-import traceback
-import msgpack
 
 from ..utils.node_info import (
     NodeInfo,
@@ -12,7 +10,6 @@ from ..utils.node_info import (
 )
 
 from ..utils.log import logger
-from ..utils.msg import send_bytes_request
 
 class NodesInfoManager:
     """Manages information about nodes in the network."""
@@ -33,15 +30,15 @@ class NodesInfoManager:
         """Check if the heartbeat for a given node is valid."""
         return self.check_node(node_id) and self.check_info(node_id, info_id)
 
-    def update_node(self, node_id: HashIdentifier, node_info: NodeInfo):
+    def update_node(self, node_info: NodeInfo):
         """Update or add a node's information."""
-        if node_id in self.nodes_info:
+        if node_info["nodeID"] in self.nodes_info:
             logger.info("Node %s has been updated", node_info["name"])
         else:
             logger.info("Node %s has been added", node_info["name"])
-        self.nodes_info[node_id] = node_info
-        self.nodes_info_id[node_id] = node_info["infoID"]
-        self.nodes_heartbeat[node_id] = node_info["ip"]
+        self.nodes_info[node_info["nodeID"]] = node_info
+        self.nodes_info_id[node_info["nodeID"]] = node_info["infoID"]
+        self.nodes_heartbeat[node_info["nodeID"]] = node_info["ip"]
 
     def remove_node(self, node_id: HashIdentifier) -> None:
         """Remove a node's information."""
@@ -65,17 +62,3 @@ class NodesInfoManager:
                 if service["name"] == service_name:
                     return service
         return None
-
-    async def process_new_discover(self, node_ip: str, port: int) -> None:
-        """Process a heartbeat message from a node."""
-        try:
-            addr = f"tcp://{node_ip}:{port}"
-            node_info_bytes = await send_bytes_request(addr, "GetNodeInfo", b"")
-            if node_info_bytes is not None:
-                node_info = msgpack.unpackb(node_info_bytes, strict_map_key=False, raw=False)
-                node_id = node_info["nodeID"]
-                node_info["ip"] = node_ip
-                self.update_node(node_id, node_info)
-        except Exception as e:
-            traceback.print_exc()
-            logger.error("Error processing new discovery: %s", e)

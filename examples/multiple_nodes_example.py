@@ -2,8 +2,8 @@ import logging
 import multiprocessing as mp
 import time
 
-from pylancom.utils.node_info import IPAddress
-from pylancom.nodes.abstract_node import AbstractNode
+from pyzerolancom.utils.node_info import IPAddress
+from pyzerolancom.nodes.abstract_node import AbstractNode
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

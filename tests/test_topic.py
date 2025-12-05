@@ -5,9 +5,9 @@ from typing import Callable
 
 from utils import random_name
 
-import pylancom
-from pylancom.nodes.lancom_socket import Publisher, Subscriber
-from pylancom.utils.serialization import StrDecoder
+import pyzerolancom
+from pyzerolancom.sockets.publisher import Publisher, Subscriber
+from pyzerolancom.utils.serialization import StrDecoder
 
 
 def create_subscriber_callback(
@@ -22,7 +22,7 @@ def create_subscriber_callback(
 
 def start_node(publisher_list: list[str], subscriber_list: list[str]):
     node_name = random_name("Node")
-    node = pylancom.init_node(node_name, "127.0.0.1")
+    node = pyzerolancom.init_node(node_name, "127.0.0.1")
     publisher_dict: dict[str, Publisher] = {}
     subscriber_dict: dict[str, Subscriber] = {}
     for name in publisher_list:

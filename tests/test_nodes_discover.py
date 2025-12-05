@@ -2,14 +2,14 @@ import multiprocessing as mp
 import random
 import time
 
-import pylancom
+import pyzerolancom
 
 
 def start_test_node():
     try:
         node_name = "TestDiscoverNode"
         print(f"Starting node {node_name}")
-        node = pylancom.init_node(node_name, "127.0.0.1")
+        node = pyzerolancom.init_node(node_name, "127.0.0.1")
         node.spin()
         print(f"Node {node_name} stopped")
     except KeyboardInterrupt:
@@ -21,7 +21,7 @@ def start_node_task(num: int):
     try:
         node_name = f"Node_{num}"
         print(f"Starting node {node_name}")
-        node = pylancom.init_node(node_name, "127.0.0.1")
+        node = pyzerolancom.init_node(node_name, "127.0.0.1")
         node.spin()
         print(f"Node {node_name} stopped")
     except KeyboardInterrupt:

@@ -5,49 +5,37 @@ import traceback
 from typing import Optional, Callable, Any
 import socket
 import struct
-import time
-import zmq
 
-from ..utils.node_info import IPAddress
 from ..utils.log import logger
 from ..utils.msg import create_hash_identifier
 from .loop_manager import LanComLoopManager
 from ..utils.node_info import NodeInfo
 from .nodes_info_manager import NodesInfoManager
-from .zmq_socket_manager import ZMQSocketManager, PUB
-from .service_manager import ServiceManager
+from .zmq_socket_manager import ZMQSocketManager
+from ..sockets.service_manager import ServiceManager
 from ..utils.msg import send_bytes_request
-
-
-HEARTBEAT_FORMAT = struct.Struct("!6s36sII")
+from ..utils.node_info import encode_node_info, decode_node_info
 
 
 class LocalNodeInfo:
     """Holds local node information."""
 
-    def __init__(self, name: str, ip: IPAddress, port: int) -> None:
+    def __init__(self, name: str, ip: str) -> None:
         self.name = name
         self.node_id = create_hash_identifier()
         self.info_id: int = 0
-        self.port = port
         self.node_info: NodeInfo = NodeInfo({
             "name": self.name,
             "nodeID": self.node_id,
             "infoID": self.info_id,
             "ip": ip,
-            "port": self.port,
             "topics": [],
             "services": [],
         })
 
     def create_heartbeat_message(self) -> bytes:
         """Create a heartbeat message in bytes."""
-        return HEARTBEAT_FORMAT.pack(
-            b"LANCOM",
-            self.node_id.encode(),
-            self.info_id,
-            self.port,
-        )
+        return encode_node_info(self.node_info)
 
     def check_local_service(self, service_name: str) -> bool:
         """Check if a service is registered locally."""
@@ -88,7 +76,6 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
         self.loop_manager = node_manager.loop_manager
         self.node_info_manager = node_manager.nodes_manager
         self.transport: Optional[asyncio.DatagramTransport] = None
-        self.message_size = HEARTBEAT_FORMAT.size
 
     def connection_made(self, transport: asyncio.DatagramTransport):
         self.transport = transport
@@ -98,24 +85,17 @@ class MulticastDiscoveryProtocol(asyncio.DatagramProtocol):
         """Handle incoming multicast discovery messages"""
         try:
             node_ip = addr[0]
-            if len(data) != self.message_size:
-                return
-            header, node_id, info_id, port = HEARTBEAT_FORMAT.unpack(data)
-            node_id = node_id.decode()
-            info_id = int(info_id)
-            port = int(port)
-            if header != b"LANCOM":
-                return
-            if not self.node_info_manager.check_multicast_message(node_id, info_id):
-                self.loop_manager.submit_loop_task(
-                    self.node_info_manager.process_new_discover(node_ip, port)
-                )
+            node_info = decode_node_info(data)
+            node_info["ip"] = node_ip
+            if not self.node_info_manager.check_info(node_info["nodeID"], node_info["infoID"]):
+                self.node_info_manager.update_node(node_info)
         except Exception as e:
             logger.error("Error processing datagram: %s", e)
             traceback.print_exc()
 
     def error_received(self, exc):
         logger.error("Multicast protocol error: %s", exc)
+
     def connection_lost(self, exc):
         if exc:
             logger.error("Multicast connection lost: %s", exc)
@@ -131,11 +111,12 @@ class LanComNode:
     def __init__(
         self,
         node_name: str,
-        node_ip: IPAddress,
-        group: IPAddress = "224.0.0.1",
+        node_ip: str,
+        group: str = "224.0.0.1",
         group_port: int = 7720,
     ) -> None:
         super().__init__()
+        self.name = node_name
         self.node_ip = node_ip
         self.group = group
         self.group_port = group_port
@@ -145,7 +126,7 @@ class LanComNode:
         self.discovery_transport: Optional[asyncio.DatagramTransport] = None
         self.service_manager = ServiceManager(f"tcp://{self.node_ip}:0")
         self.service_manager.register_service("GetNodeInfo", self.get_node_info)
-        self._local_info = LocalNodeInfo(node_name, self.node_ip, self.service_manager.port)
+        self._local_info = LocalNodeInfo(node_name, self.node_ip)
         self._running: bool = True
         # add tasks to the event loop
         self.loop_manager.submit_loop_task(self.multicast_loop())

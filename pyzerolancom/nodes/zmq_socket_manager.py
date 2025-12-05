@@ -20,8 +20,13 @@ class ZMQSocketManager:
         return cls._instance
 
     def __init__(self) -> None:
-        self.context: zmq.asyncio.Context = zmq.asyncio.Context()
+        self.context: zmq.Context = zmq.Context()
+        self.async_context: zmq.asyncio.Context = zmq.asyncio.Context()
 
-    def create_socket(self, socket_type: int) -> zmq.asyncio.Socket:
+    def create_socket(self, socket_type: int) -> zmq.Socket:
         """Create and return a new ZMQ socket of the specified type."""
         return self.context.socket(socket_type)
+
+    def create_async_socket(self, socket_type: int) -> zmq.asyncio.Socket:
+        """Create and return a new asynchronous ZMQ socket of the specified type."""
+        return self.async_context.socket(socket_type)
