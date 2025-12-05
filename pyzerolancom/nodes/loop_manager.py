@@ -48,7 +48,7 @@ class LanComLoopManager(abc.ABC):
         except KeyboardInterrupt:
             self.stop_node()
         except Exception as e:
-            logger.error(f"Unexpected error in thread_task: {e}")
+            logger.error("Unexpected error in thread_task: %s", e)
             traceback.print_exc()
             self.stop_node()
         finally:
@@ -77,7 +77,7 @@ class LanComLoopManager(abc.ABC):
 
     async def run_in_executor(
         self,
-        func: Union[Coroutine[Any, Any, Any], Any],
+        func: Coroutine[Any, Any, Any],
         *args: Any,
         **kwargs: Any,
     ) -> Any:

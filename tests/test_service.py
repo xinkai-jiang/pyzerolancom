@@ -4,9 +4,9 @@ from typing import Callable
 
 from utils import random_name
 
-import pylancom
-from pylancom.nodes.lancom_socket import Service, ServiceProxy
-from pylancom.utils.serialization import StrDecoder, StrEncoder
+import pyzerolancom
+from pyzerolancom.sockets.publisher import Service, ServiceProxy
+from pyzerolancom.utils.serialization import StrDecoder, StrEncoder
 
 
 def create_service_callback(service_name: str) -> Callable[[str], str]:
@@ -24,7 +24,7 @@ def create_service_callback(service_name: str) -> Callable[[str], str]:
 def start_service_node(service_names: list[str]):
     print("Starting service node")
     node_name = random_name("Node")
-    node = pylancom.init_node(node_name, "127.0.0.1")
+    node = pyzerolancom.init_node(node_name, "127.0.0.1")
     service_dict: dict[str, Service] = {}
     for service_name in service_names:
         service_dict[service_name] = Service(
@@ -38,7 +38,7 @@ def start_service_node(service_names: list[str]):
 
 def send_request(service_name: str, msg: str):
     node_name = random_name("Node")
-    node = pylancom.init_node(node_name, "127.0.0.1")
+    node = pyzerolancom.init_node(node_name, "127.0.0.1")
     response = ServiceProxy.request(service_name, StrEncoder, StrDecoder, msg)
     print(f"Response from {service_name}: {response}")
     node.stop_node()
