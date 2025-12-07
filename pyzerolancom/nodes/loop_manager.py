@@ -5,12 +5,12 @@ import asyncio
 import concurrent.futures
 import time
 import traceback
+import threading
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Coroutine, Optional, Union, Callable
+from typing import Any, Coroutine, Optional, Callable, Union
 
 from ..utils.log import logger
-
 
 class LanComLoopManager(abc.ABC):
     """Manages the event loop and thread pool for asynchronous tasks."""
@@ -35,6 +35,7 @@ class LanComLoopManager(abc.ABC):
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._executor.submit(self.spin_task)
         self._running: bool = False
+        self._stopped_event = threading.Event()
         while self._loop is None:
             time.sleep(0.01)
 
@@ -46,36 +47,44 @@ class LanComLoopManager(abc.ABC):
             asyncio.set_event_loop(self._loop)
             self._running = True
             self._loop.run_forever()
-        except KeyboardInterrupt:
-            self.stop_node()
         except Exception as e:
             logger.error("Unexpected error in thread_task: %s", e)
             traceback.print_exc()
-            self.stop_node()
             raise e
         finally:
+            logger.info("Shutting down spin task")
+            self._running = False
             if self._loop is not None:
                 self._loop.close()
+            self._stopped_event.set()
             logger.info("Spin task has been stopped")
-            self._running = False
-            self._executor.shutdown(wait=False)
-            logger.info("Thread pool has been stopped")
 
     def spin(self) -> None:
         """Start the spin task in a separate thread."""
-        while self._running:
-            time.sleep(0.05)
+        try:
+            self._stopped_event.wait()
+        except KeyboardInterrupt:
+            self.stop()
 
-    def stop_node(self):
+    def stop(self):
         """Stop the event loop and shut down the thread pool executor."""
         self._running = False
+        # When loop out of run_forver(), all the tasks are pending
+        # need to cancel them
+        for task in asyncio.all_tasks(self._loop):
+            task.cancel()
         try:
-            if self._loop is not None:
-                self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._loop is None:
+                raise RuntimeError("Event loop is not initialized")
+            self._loop.call_soon_threadsafe(self._loop.stop)
+            logger.info("Event loop stop signal sent")
         except RuntimeError as e:
-            logger.error("One error occurred when stop server: %s", e)
+            logger.error("One error occurred when stop loop manager: %s", e)
+        self._stopped_event.wait()
         assert self._executor is not None
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=True)
+        logger.info("Thread pool executor has been shut down")
+        logger.info("LanComLoopManager has been stopped")
 
     async def run_in_executor(
         self,

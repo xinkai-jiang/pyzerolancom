@@ -5,67 +5,19 @@ import traceback
 from typing import Optional, Callable, Any
 import socket
 import struct
+import time
 
 from ..utils.log import logger
-from ..utils.msg import create_hash_identifier
+
 from .loop_manager import LanComLoopManager
-from ..utils.node_info import NodeInfo
-from .nodes_info_manager import NodesInfoManager
+from .nodes_info_manager import NodesInfoManager, LocalNodeInfo
 from .zmq_socket_manager import ZMQSocketManager
 from ..sockets.service_manager import ServiceManager
-from ..utils.msg import send_bytes_request
-from ..utils.node_info import encode_node_info, decode_node_info
+from ..sockets.service_client import ServiceProxy
+from ..utils.node_info import decode_node_info
+from ..sockets.subscriber_manager import SubscriberManager
+from ..utils.msg import Request, Response
 
-
-class LocalNodeInfo:
-    """Holds local node information."""
-
-    def __init__(self, name: str, ip: str) -> None:
-        self.name = name
-        self.node_id = create_hash_identifier()
-        self.info_id: int = 0
-        self.node_info: NodeInfo = NodeInfo({
-            "name": self.name,
-            "nodeID": self.node_id,
-            "infoID": self.info_id,
-            "ip": ip,
-            "topics": [],
-            "services": [],
-        })
-
-    def create_heartbeat_message(self) -> bytes:
-        """Create a heartbeat message in bytes."""
-        return encode_node_info(self.node_info)
-
-    def check_local_service(self, service_name: str) -> bool:
-        """Check if a service is registered locally."""
-        for service in self.node_info.get("services", []):
-            if service["name"] == service_name:
-                return True
-        return False
-
-    def check_local_topic(self, topic_name: str) -> bool:
-        """Check if a topic is registered locally."""
-        for topic in self.node_info.get("topics", []):
-            if topic["name"] == topic_name:
-                return True
-        return False
-
-    def register_service(self, service_name: str) -> bool:
-        """Register a new service locally."""
-        if self.check_local_service(service_name):
-            return False
-        self.node_info.setdefault("services", []).append(
-            {"name": service_name}
-        )
-        self.info_id += 1
-        return True
-
-    def register_publisher(
-        self,
-        topic_name: str,
-    ) -> None:
-        pass
 
 # NOTE: asyncio.loop.sock_recvfrom can only be used after Python 3.11
 # So we create a custom DatagramProtocol for multicast discovery
@@ -109,6 +61,13 @@ class LanComNode:
     """Represents a LanCom node in the network."""
     instance: Optional[LanComNode] = None
 
+    @classmethod
+    def get_instance(cls) -> LanComNode:
+        """Get the singleton instance of LanComNode."""
+        if cls.instance is None:
+            raise ValueError("LanComNode is not initialized yet.")
+        return cls.instance
+
     def __init__(
         self,
         node_name: str,
@@ -116,7 +75,7 @@ class LanComNode:
         group: str = "224.0.0.1",
         group_port: int = 7720,
     ) -> None:
-        super().__init__()
+        LanComNode.instance = self
         self.name = node_name
         self.node_ip = node_ip
         self.group = group
@@ -125,28 +84,33 @@ class LanComNode:
         self.nodes_manager: NodesInfoManager = NodesInfoManager()
         self.loop_manager: LanComLoopManager = LanComLoopManager()
         self.discovery_transport: Optional[asyncio.DatagramTransport] = None
-        self.service_manager = ServiceManager(f"tcp://{self.node_ip}:0")
-        self.service_manager.register_service("GetNodeInfo", self.get_node_info)
         self._local_info = LocalNodeInfo(node_name, self.node_ip)
-        self._running: bool = True
+        self.service_manager = ServiceManager(f"tcp://{self.node_ip}:0")
+        self.subscriber_manager = SubscriberManager()
+        self.running: bool = True
         # add tasks to the event loop
-        self.loop_manager.submit_loop_task(self.multicast_loop())
-        self.loop_manager.submit_loop_task(self.discovery_loop())
+        self.multicast_future = self.loop_manager.submit_loop_task(self.multicast_loop())
+        self.discovery_future = self.loop_manager.submit_loop_task(self.discovery_loop())
 
     def spin(self) -> None:
         """Start the node's event loop."""
         try:
-            self._running = True
+            self.running = True
             self.loop_manager.spin()
         except KeyboardInterrupt:
+            logger.debug("LanCom node interrupted by user")
             self.stop_node()
+            self.service_manager.stop()
+            self.multicast_future.cancel()
+            self.discovery_future.cancel()
+            self.loop_manager.stop()
         finally:
-            logger.info("LanCom node spin has been stopped")
+            logger.info("LanCom node has been stopped")
 
 
     async def multicast_loop(self, interval=1.0):
         """Send multicast heartbeat messages at regular intervals."""
-        self._running = True
+        self.running = True
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -154,16 +118,20 @@ class LanComNode:
         sock.setsockopt(socket.IPPROTO_IP,
                         socket.IP_MULTICAST_IF,
                         socket.inet_aton(self.node_ip))
-        while self._running:
+        while self.running:
             try:
                 msg = self._local_info.create_heartbeat_message()
                 sock.sendto(msg, (self.group, self.group_port))
                 await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                logger.info("Multicast loop cancelled...")
+                break
             except Exception as e:
                 logger.error("Error in multicast loop: %s", e)
                 traceback.print_exc()
                 raise e
         sock.close()
+        logger.info("Multicast heartbeat loop stopped")
 
     async def discovery_loop(self):
         """Listen for multicast discovery messages and register nodes."""
@@ -190,9 +158,7 @@ class LanComNode:
             self.discovery_transport, _ = await loop.create_datagram_endpoint(
                 lambda: MulticastDiscoveryProtocol(self), sock=sock
             )
-            # Keep the loop running until stopped
-            while self._running:
-                await asyncio.sleep(1)  # Keep the coroutine alive
+            await asyncio.Future()
         except KeyboardInterrupt:
             logger.info("Discovery loop interrupted by user")
         except asyncio.CancelledError:
@@ -201,18 +167,23 @@ class LanComNode:
             logger.error("Error in discovery loop: %s", e)
             traceback.print_exc()
             raise e
-        finally:
-            # Clean up
+        try:
             if self.discovery_transport:
                 self.discovery_transport.close()
             sock.close()
             logger.info("Multicast discovery loop stopped")
-
+        except RuntimeWarning as e:
+            logger.error("Error closing discovery socket: %s", e)
+        except Exception as e:
+            logger.error("Unexpected error when closing discovery socket: %s", e)
+            traceback.print_exc()
+            raise e
 
     def stop_node(self):
         """Stop the node's operations."""
-        self._running = False
-        self.loop_manager.stop_node()
+        self.running = False
+        self.service_manager.stop()
+        self.loop_manager.stop()
         logger.info("LanCom node has been stopped")
 
     def create_service(
@@ -221,38 +192,43 @@ class LanComNode:
         callback: Callable[[Any], Any],
     ) -> None:
         """Create and register a service with the given name and callback."""
-        self._local_info.register_service(service_name)
+        self._local_info.register_service(service_name, self.service_manager.port)
         self.service_manager.register_service(service_name, callback)
 
-    def wait_for_service(self) -> None:
-        """Start the service manager's service loop."""
-        self.loop_manager.submit_loop_task(
-            self.service_manager.service_loop(
-                self.service_manager.res_socket,
-                self.service_manager.callable_services,
-            ),
-            False,
-        )
-
-    def request(
+    def create_subscriber(
         self,
-        addr: str,
-        service_name: str,
-        request_data: bytes,
-        timeout: float = 1.0,
-    ) -> asyncio.Future:
-        """Send a request to a service and get the response asynchronously."""
-        if not self._running:
-            raise RuntimeError("Node is not running. Cannot send request.")
-        return asyncio.ensure_future(
-            send_bytes_request(
-                addr,
-                service_name,
-                request_data,
-                timeout,
-            )
-        )
+        topic_name: str,
+        callback: Callable,
+    ) -> None:
+        """Create and register a subscriber for the given topic."""
+        self.subscriber_manager.add_subscriber(topic_name, callback)
 
-    def get_node_info(self) -> NodeInfo:
-        """Get the local node's information."""
-        return self._local_info.node_info
+    def wait_for_service(
+        self, service_name: str, max_wait_timeout: int = 5, check_interval: float = 1
+    ) -> None:
+        """Start the service manager's service loop."""
+        waited_time = 0
+        while not self.nodes_manager.get_service_info(service_name):
+            if waited_time >= max_wait_timeout:
+                raise TimeoutError(
+                    f"Service {service_name} is online after {max_wait_timeout} seconds."
+                )
+            logger.info("Waiting for service %s to be registered locally...", service_name)
+            time.sleep(check_interval)
+            waited_time += check_interval
+
+    def call(
+        self,
+        service_name: str,
+        request: Request,
+    ) -> Optional[Response]:
+        """Send a request to a service and get the response."""
+        return ServiceProxy.request(service_name, request)
+
+    def sleep(self, duration: float) -> None:
+        """Sleep for the specified duration in seconds."""
+        try:
+            time.sleep(duration)
+        except KeyboardInterrupt:
+            logger.debug("Sleep interrupted by user")
+            self.stop_node()

@@ -8,12 +8,23 @@ from ..utils.node_info import (
     TopicName,
     HashIdentifier,
 )
-
+from ..utils.msg import create_hash_identifier
 from ..utils.log import logger
+from ..utils.node_info import encode_node_info
 
 class NodesInfoManager:
     """Manages information about nodes in the network."""
+    _instance: Optional[NodesInfoManager] = None
+
+    @classmethod
+    def get_instance(cls) -> NodesInfoManager:
+        """Get the singleton instance of NodesInfoManager."""
+        if cls._instance is None:
+            raise ValueError("NodesInfoManager is not initialized yet.")
+        return cls._instance
+
     def __init__(self):
+        NodesInfoManager._instance = self
         self.nodes_info: Dict[HashIdentifier, NodeInfo] = {}
         self.nodes_info_id: Dict[HashIdentifier, int] = {}
         self.nodes_heartbeat: Dict[HashIdentifier, str] = {}
@@ -50,7 +61,7 @@ class NodesInfoManager:
         """Get a list of publisher socket information for a given topic name."""
         publishers: List[SocketInfo] = []
         for pub_info in self.nodes_info.values():
-            for pub in pub_info.get("pubList", []):
+            for pub in pub_info["topics"]:
                 if pub["name"] == topic_name:
                     publishers.append(pub)
         return publishers
@@ -58,7 +69,74 @@ class NodesInfoManager:
     def get_service_info(self, service_name: str) -> Optional[SocketInfo]:
         """Get the service socket information for a given service name."""
         for node_info in self.nodes_info.values():
-            for service in node_info.get("srvList", []):
+            for service in node_info["services"]:
                 if service["name"] == service_name:
                     return service
         return None
+
+class LocalNodeInfo:
+    """Holds local node information."""
+    _instance: Optional[LocalNodeInfo] = None
+
+    @classmethod
+    def get_instance(cls) -> LocalNodeInfo:
+        """Get the singleton instance of LocalNodeInfo."""
+        if cls._instance is None:
+            raise ValueError("LocalNodeInfo is not initialized yet.")
+        return cls._instance
+
+
+    def __init__(self, name: str, ip: str) -> None:
+        LocalNodeInfo._instance = self
+        self.nodes_manager: NodesInfoManager = NodesInfoManager.get_instance()
+        self.name = name
+        self.node_id = create_hash_identifier()
+        self.info_id: int = 0
+        self.node_info: NodeInfo = NodeInfo({
+            "name": self.name,
+            "nodeID": self.node_id,
+            "infoID": self.info_id,
+            "ip": ip,
+            "topics": [],
+            "services": [],
+        })
+
+    def create_heartbeat_message(self) -> bytes:
+        """Create a heartbeat message in bytes."""
+        return encode_node_info(self.node_info)
+
+    def check_local_service(self, service_name: str) -> bool:
+        """Check if a service is registered locally."""
+        for service in self.node_info.get("services", []):
+            if service["name"] == service_name:
+                return True
+        return False
+
+    def check_local_topic(self, topic_name: str) -> bool:
+        """Check if a topic is registered locally."""
+        for topic in self.node_info.get("topics", []):
+            if topic["name"] == topic_name:
+                return True
+        return False
+
+    def register_service(self, service_name: str, port: int) -> None:
+        """Register a new service locally."""
+        if self.check_local_service(service_name):
+            raise ValueError(f"Service {service_name} is already registered locally.")
+        if self.nodes_manager.get_service_info(service_name):
+            raise ValueError(f"Service {service_name} is already registered in the network.")
+        self.node_info.setdefault("services", []).append(
+            {"name": service_name, "ip": self.node_info.get("ip"), "port": port}
+        )
+        self.info_id += 1
+
+    def register_publisher(self, topic_name: str, port: int) -> None:
+        """Register a new topic locally."""
+        if self.check_local_topic(topic_name):
+            raise ValueError(f"Topic {topic_name} is already registered locally.")
+        if len(self.nodes_manager.get_publisher_info(topic_name)) > 0:
+            raise ValueError(f"Topic {topic_name} is already registered in the network.")
+        self.node_info.setdefault("topics", []).append(
+            {"name": topic_name, "ip": self.node_info.get("ip"), "port": port}
+        )
+        self.info_id += 1

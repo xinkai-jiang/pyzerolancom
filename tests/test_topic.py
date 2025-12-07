@@ -6,8 +6,7 @@ from typing import Callable
 from utils import random_name
 
 import pyzerolancom
-from pyzerolancom.sockets.publisher import Publisher, Subscriber
-from pyzerolancom.utils.serialization import StrDecoder
+from pyzerolancom.sockets.publisher import Publisher
 
 
 def create_subscriber_callback(
