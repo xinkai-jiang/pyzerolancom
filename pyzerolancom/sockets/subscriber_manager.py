@@ -52,8 +52,8 @@ class Subscriber:
 class SubscriberManager:
     def __init__(self):
         self.loop_manager = LanComLoopManager.get_instance()
-        self.loop_manager.submit_loop_task(self.listen_loop(), False)
-        self.loop_manager.submit_loop_task(self.receive_loop(), False)
+        # self.loop_manager.submit_loop_task(self.listen_loop(), False)
+        # self.loop_manager.submit_loop_task(self.receive_loop(), False)
 
     async def listen_loop(self, url: str) -> None:
         """Listens for new publishers and connects to them."""
