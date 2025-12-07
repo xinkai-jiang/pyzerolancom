@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "name": "Service Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_service.py",
+            "console": "integratedTerminal",
+        }
+    ]
+}

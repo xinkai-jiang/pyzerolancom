@@ -44,7 +44,7 @@ class ServiceManager:
         logger.info("ServiceManager REP socket bound to %s", url)
         self._running: bool = True
         self.loop_manager = LanComLoopManager.get_instance()
-        self.loop_manager.submit_loop_task(
+        self.service_loop_future = self.loop_manager.submit_loop_task(
             self.service_loop(self.res_socket, self.callable_services)
         )
 
@@ -70,12 +70,14 @@ class ServiceManager:
         """Asynchronously handles incoming service requests."""
         while self._running:
             try:
+                event = await service_socket.poll()
+                if not event:
+                    continue
                 name_bytes, request = await service_socket.recv_multipart()
             except Exception as e:
                 logger.error("Error occurred when receiving request: %s", e)
-                raise e
-            finally:
                 traceback.print_exc()
+                raise e
             service_name = name_bytes.decode()
             if service_name not in services.keys():
                 logger.error("Service %s is not available", service_name)
@@ -104,3 +106,10 @@ class ServiceManager:
                 await service_socket.send_string("ERROR")
                 raise e
         logger.info("Service loop has been stopped")
+
+    def stop(self) -> None:
+        """Stop the service manager and close the socket."""
+        self._running = False
+        self.res_socket.close()
+        self.service_loop_future.cancel()
+        logger.info("ServiceManager has been stopped")

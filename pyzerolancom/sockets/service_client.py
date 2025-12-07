@@ -1,10 +1,11 @@
 """Client proxy for calling services."""
-from typing import Optional, cast, Dict
+from typing import Optional
 import msgpack
 
+from ..nodes.nodes_info_manager import NodesInfoManager
+from ..nodes.loop_manager import LanComLoopManager
 from ..utils.log import logger
-from ..nodes.lancom_node import LanComNode
-from ..utils.msg import send_bytes_request
+from ..utils.msg import send_bytes_request, Response, Request
 
 class ServiceProxy:
     """Client proxy for calling services."""
@@ -12,23 +13,22 @@ class ServiceProxy:
     @staticmethod
     def request(
         service_name: str,
-        request: Dict,
-    ) -> Optional[Dict]:
+        request: Request,
+    ) -> Optional[Response]:
         """Send a request to a service and get the response."""
-        if LanComNode.instance is None:
-            raise ValueError("Lancom Node is not initialized")
-        node = LanComNode.instance
-        service_component = node.nodes_manager.get_service_info(service_name)
-        if service_component is None:
+        nodes_manager = NodesInfoManager.get_instance()
+        loop_manager = LanComLoopManager.get_instance()
+        service_info = nodes_manager.get_service_info(service_name)
+        if service_info is None:
             logger.warning("Service %s is not exist", service_name)
             return None
-        addr = f"tcp://{service_component['ip']}:{service_component['port']}"
+        addr = f"tcp://{service_info['ip']}:{service_info['port']}"
         request_bytes = msgpack.packb(request)
         if request_bytes is None:
             logger.error("Failed to pack request for service %s", service_name)
             return None
-        response = node.loop_manager.submit_loop_task(
+        response = loop_manager.submit_loop_task(
             send_bytes_request(addr, service_name, request_bytes),
             True,
         )
-        return msgpack.unpackb(cast(bytes, response))
+        return msgpack.unpackb(response)

@@ -1,16 +1,18 @@
 import asyncio
-import hashlib
 import socket
 import struct
 import uuid
-from typing import Optional
+from typing import Optional, Union, Dict, TypeAlias
 
 import zmq
 import zmq.asyncio
 
-# from ..config import __VERSION_BYTES__
 from .node_info import HashIdentifier
 from .log import logger
+
+Message: TypeAlias = Union[Dict, str]
+Request: TypeAlias = Union[Dict, str]
+Response: TypeAlias = Union[Dict, str]
 
 
 def create_hash_identifier() -> HashIdentifier:
@@ -24,22 +26,17 @@ def create_hash_identifier() -> HashIdentifier:
 
     return str(uuid.uuid4())
 
-
-def create_sha256(s: str):
-    return hashlib.sha256(s.encode()).hexdigest()
-
-
-def get_socket_addr(zmq_socket: zmq.asyncio.Socket) -> tuple[str, int]:
+def get_socket_addr(zmq_socket: Union[zmq.Socket, zmq.asyncio.Socket]) -> tuple[str, int]:
+    """Get the address and port of a ZMQ socket."""
     endpoint: bytes = zmq_socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
     return endpoint.decode(), int(endpoint.decode().split(":")[-1])
 
-
 def calculate_broadcast_addr(ip_addr: str) -> str:
+    """Calculate the broadcast address for a given IP address."""
     ip_bin = struct.unpack("!I", socket.inet_aton(ip_addr))[0]
     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
     return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
-
 
 async def send_bytes_request(
     addr: str, service_name: str, bytes_msgs: bytes, timeout: float = 1.0

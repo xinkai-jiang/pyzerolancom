@@ -17,6 +17,7 @@ class SocketInfo(TypedDict):
 
 
 class NodeInfo(TypedDict):
+    """Node information structure."""
     nodeID: str
     infoID: int
     name: str
@@ -117,8 +118,7 @@ def encode_socket_info(info: SocketInfo) -> bytes:
     """Encode SocketInfo into bytes."""
     writer = BinWriter()
     writer.write_string(info["name"])
-    writer.write_string(info["ip"])
-    writer.write_u32(info["port"])
+    writer.write_u16(info["port"])
     return bytes(writer.buf)
 
 def encode_node_info(info: NodeInfo) -> bytes:
