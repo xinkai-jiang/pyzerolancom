@@ -7,29 +7,35 @@ import zmq.asyncio
 import msgpack
 
 from zmq.asyncio import Socket as AsyncSocket
-from ..utils.log import logger
+from ..utils.log import _logger
 from ..nodes.loop_manager import LanComLoopManager
 from ..utils.msg import get_socket_addr
 
 
 def non_argument_func_wrapper(func: Callable) -> Callable:
     """Wrap a function with no arguments to accept bytes and return bytes."""
+
     def wrapper(_: bytes):
         result = func()
         if result is None:
             return b""
         return msgpack.packb(result, use_bin_type=True)
+
     return wrapper
+
 
 def argument_func_wrapper(func: Callable) -> Callable:
     """Wrap a function with one argument to accept bytes and return bytes."""
+
     def wrapper(request_bytes: bytes):
         arg = msgpack.unpackb(request_bytes, raw=False)
         result = func(arg)
         if result is None:
             return b""
         return msgpack.packb(result, use_bin_type=True)
+
     return wrapper
+
 
 class ServiceManager:
     """Manages services using a REP socket."""
@@ -41,7 +47,7 @@ class ServiceManager:
         self.callable_services: dict[str, Callable[[bytes], bytes]] = {}
         self.res_socket.bind(url)
         url, self.port = get_socket_addr(self.res_socket)
-        logger.info("ServiceManager REP socket bound to %s", url)
+        _logger.info("ServiceManager REP socket bound to %s", url)
         self._running: bool = True
         self.loop_manager = LanComLoopManager.get_instance()
         self.service_loop_future = self.loop_manager.submit_loop_task(
@@ -60,7 +66,7 @@ class ServiceManager:
             raise TypeError(
                 f"Service '{service_name}' handler must have 0 or 1 parameter."
             )
-        logger.info("Service '%s' registered.", service_name)
+        _logger.info("Service '%s' registered.", service_name)
 
     async def service_loop(
         self,
@@ -75,41 +81,40 @@ class ServiceManager:
                     continue
                 name_bytes, request = await service_socket.recv_multipart()
             except Exception as e:
-                logger.error("Error occurred when receiving request: %s", e)
+                _logger.error("Error occurred when receiving request: %s", e)
                 traceback.print_exc()
                 raise e
             service_name = name_bytes.decode()
             if service_name not in services.keys():
-                logger.error("Service %s is not available", service_name)
+                _logger.error("Service %s is not available", service_name)
                 continue
             try:
                 result = await asyncio.wait_for(
-                    self.loop_manager.run_in_executor(
-                        services[service_name], request
-                    ),
+                    self.loop_manager.run_in_executor(services[service_name], request),
                     timeout=2.0,
                 )
                 packed_result = msgpack.packb(result, use_bin_type=True)
                 await service_socket.send(packed_result)
             except asyncio.TimeoutError:
-                logger.error("Timeout: callback function took too long")
+                _logger.error("Timeout: callback function took too long")
                 await service_socket.send_string("TIMEOUT")
             except msgpack.ExtraData as e:
-                logger.error("Message unpacking error: %s", e)
+                _logger.error("Message unpacking error: %s", e)
                 await service_socket.send_string("UNPACKING_ERROR")
             except Exception as e:
-                logger.error(
-                    "One error occurred when processing the Service "
-                    "%s: %s", service_name, e
+                _logger.error(
+                    "One error occurred when processing the Service " "%s: %s",
+                    service_name,
+                    e,
                 )
                 traceback.print_exc()
                 await service_socket.send_string("ERROR")
                 raise e
-        logger.info("Service loop has been stopped")
+        _logger.info("Service loop has been stopped")
 
     def stop(self) -> None:
         """Stop the service manager and close the socket."""
         self._running = False
         self.res_socket.close()
         self.service_loop_future.cancel()
-        logger.info("ServiceManager has been stopped")
+        _logger.info("ServiceManager has been stopped")

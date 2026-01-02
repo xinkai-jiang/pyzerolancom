@@ -8,7 +8,7 @@ import zmq
 import msgpack
 
 from ..nodes.zmq_socket_manager import ZMQSocketManager
-from ..utils.log import logger
+from ..utils.log import _logger
 from ..nodes.nodes_info_manager import LocalNodeInfo
 from ..nodes.loop_manager import LanComLoopManager
 from ..utils.msg import Message, get_socket_addr
@@ -16,10 +16,8 @@ from ..utils.msg import Message, get_socket_addr
 
 class Publisher:
     """Publishes messages to a topic."""
-    def __init__(
-        self,
-        topic_name: str
-    ):
+
+    def __init__(self, topic_name: str):
         self.name = topic_name
         self.loop_manager = LanComLoopManager.get_instance()
         local_node_info = LocalNodeInfo.get_instance()
@@ -40,6 +38,7 @@ class Publisher:
 
 class Streamer:
     """Streams messages to a topic at a fixed rate."""
+
     def __init__(
         self,
         topic_name: str,
@@ -64,7 +63,7 @@ class Streamer:
         """Streams messages at the specified rate."""
         self.running = True
         last = 0.0
-        logger.info("Topic %s starts streaming", self.name)
+        _logger.info("Topic %s starts streaming", self.name)
         while self.running:
             try:
                 diff = time.monotonic() - last
@@ -73,7 +72,7 @@ class Streamer:
                 last = time.monotonic()
                 self._socket.send(msgpack.packb(self.update_func()))
             except Exception as e:
-                logger.error("Error when streaming %s: %s", self.name, e)
+                _logger.error("Error when streaming %s: %s", self.name, e)
                 traceback.print_exc()
                 raise e
-        logger.info("Streamer for topic %s is stopped", self.name)
+        _logger.info("Streamer for topic %s is stopped", self.name)

@@ -61,4 +61,4 @@ def get_logger():
 
 
 # Get the logger
-logger = get_logger()
+_logger = get_logger()

@@ -5,8 +5,8 @@ from typing import Callable
 
 from utils import random_name
 
-import pyzerolancom
-from pyzerolancom.sockets.publisher import Publisher
+import pyzlc
+from pyzlc.sockets.publisher import Publisher
 
 
 def create_subscriber_callback(
@@ -21,7 +21,7 @@ def create_subscriber_callback(
 
 def start_node(publisher_list: list[str], subscriber_list: list[str]):
     node_name = random_name("Node")
-    node = pyzerolancom.init_node(node_name, "127.0.0.1")
+    node = pyzlc.init(node_name, "127.0.0.1")
     publisher_dict: dict[str, Publisher] = {}
     subscriber_dict: dict[str, Subscriber] = {}
     for name in publisher_list:

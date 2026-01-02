@@ -1,12 +1,12 @@
 import importlib.metadata
 
-import pyzerolancom
-from pyzerolancom.utils.msg import create_hash_identifier, create_heartbeat_message
+import pyzlc
+from pyzlc.utils.msg import create_hash_identifier, create_heartbeat_message
 
 
 def test_package_version():
-    install_version = importlib.metadata.version("pyzerolancom")
-    package_version = pyzerolancom.__version__
+    install_version = importlib.metadata.version("pyzlc")
+    package_version = pyzlc.__version__
     assert (
         package_version == install_version
     ), f"Version mismatch: {package_version} != {install_version}"

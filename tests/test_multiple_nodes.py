@@ -4,8 +4,8 @@ import multiprocessing as mp
 
 import pytest
 
-from pyzerolancom.utils.node_info import IPAddress, NodeInfo
-from pyzerolancom.nodes.abstract_node import AbstractNode
+from pyzlc.utils.node_info import IPAddress, NodeInfo
+from pyzlc.nodes.abstract_node import AbstractNode
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -28,10 +28,10 @@ class TestNode(AbstractNode):
                 return  # Ignore messages from itself
             node_info = NodeInfo()
             node_info.ParseFromString(node_info_bytes)
-            logger.info(f"Received message from node {node_id.decode()}: {node_info}")
+            _logger.info(f"Received message from node {node_id.decode()}: {node_info}")
 
         except Exception as e:
-            logger.error(f"Error processing received message: {e}")
+            _logger.error(f"Error processing received message: {e}")
 
 
 def start_node_task(node_name: str, node_ip: IPAddress):
@@ -40,7 +40,7 @@ def start_node_task(node_name: str, node_ip: IPAddress):
         node.spin()
     except KeyboardInterrupt:
         node.stop_node()
-        logger.info(f"Node {node_name} stopped")
+        _logger.info(f"Node {node_name} stopped")
 
 
 @pytest.mark.asyncio
@@ -61,7 +61,7 @@ async def test_multiple_nodes():
         task.terminate()
         task.join()
 
-    logger.info("All nodes have been started and terminated")
+    _logger.info("All nodes have been started and terminated")
 
 
 if __name__ == "__main__":

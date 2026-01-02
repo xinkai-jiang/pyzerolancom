@@ -11,11 +11,13 @@ from ..utils.node_info import (
     HashIdentifier,
 )
 from ..utils.msg import create_hash_identifier
-from ..utils.log import logger
+from ..utils.log import _logger
 from ..utils.node_info import encode_node_info
+
 
 class NodesInfoManager:
     """Manages information about nodes in the network."""
+
     _instance: Optional[NodesInfoManager] = None
 
     @classmethod
@@ -43,13 +45,12 @@ class NodesInfoManager:
     def update_node(self, node_info: NodeInfo):
         """Update or add a node's information."""
         if not self.check_node(node_info["nodeID"]):
-            logger.info("Node %s has been updated", node_info["name"])
+            _logger.info("Node %s has been updated", node_info["name"])
         node_id = node_info["nodeID"]
         if not self.check_info(node_info["nodeID"], node_info["infoID"]):
             self.nodes_info[node_id] = node_info
             self.nodes_info_id[node_id] = node_info["infoID"]
         self.nodes_heartbeat[node_id] = time.monotonic()
-
 
     def remove_node(self, node_id: HashIdentifier) -> None:
         """Remove a node's information."""
@@ -79,8 +80,9 @@ class NodesInfoManager:
         while self.running:
             for node_id, last_heartbeat in self.nodes_heartbeat.items():
                 if time.monotonic() - last_heartbeat > 3:
-                    logger.warning(
-                        "Node %s is considered offline", self.nodes_info[node_id]["name"]
+                    _logger.warning(
+                        "Node %s is considered offline",
+                        self.nodes_info[node_id]["name"],
                     )
                     self.remove_node(node_id)
             await asyncio.sleep(1)
@@ -88,6 +90,7 @@ class NodesInfoManager:
 
 class LocalNodeInfo:
     """Holds local node information."""
+
     _instance: Optional[LocalNodeInfo] = None
 
     @classmethod
@@ -97,21 +100,22 @@ class LocalNodeInfo:
             raise ValueError("LocalNodeInfo is not initialized yet.")
         return cls._instance
 
-
     def __init__(self, name: str, ip: str) -> None:
         LocalNodeInfo._instance = self
         self.nodes_manager: NodesInfoManager = NodesInfoManager.get_instance()
         self.name = name
         self.node_id = create_hash_identifier()
         self.info_id: int = 0
-        self.node_info: NodeInfo = NodeInfo({
-            "name": self.name,
-            "nodeID": self.node_id,
-            "infoID": self.info_id,
-            "ip": ip,
-            "topics": [],
-            "services": [],
-        })
+        self.node_info: NodeInfo = NodeInfo(
+            {
+                "name": self.name,
+                "nodeID": self.node_id,
+                "infoID": self.info_id,
+                "ip": ip,
+                "topics": [],
+                "services": [],
+            }
+        )
 
     def create_heartbeat_message(self) -> bytes:
         """Create a heartbeat message in bytes."""
@@ -136,7 +140,9 @@ class LocalNodeInfo:
         if self.check_local_service(service_name):
             raise ValueError(f"Service {service_name} is already registered locally.")
         if self.nodes_manager.get_service_info(service_name):
-            raise ValueError(f"Service {service_name} is already registered in the network.")
+            raise ValueError(
+                f"Service {service_name} is already registered in the network."
+            )
         self.node_info.setdefault("services", []).append(
             {"name": service_name, "ip": self.node_info.get("ip"), "port": port}
         )
@@ -147,7 +153,9 @@ class LocalNodeInfo:
         if self.check_local_topic(topic_name):
             raise ValueError(f"Topic {topic_name} is already registered locally.")
         if len(self.nodes_manager.get_publisher_info(topic_name)) > 0:
-            raise ValueError(f"Topic {topic_name} is already registered in the network.")
+            raise ValueError(
+                f"Topic {topic_name} is already registered in the network."
+            )
         self.node_info.setdefault("topics", []).append(
             {"name": topic_name, "ip": self.node_info.get("ip"), "port": port}
         )
