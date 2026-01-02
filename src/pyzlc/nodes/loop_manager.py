@@ -10,7 +10,8 @@ from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Coroutine, Optional, Callable, Union
 
-from ..utils.log import logger
+from ..utils.log import _logger
+
 
 class LanComLoopManager(abc.ABC):
     """Manages the event loop and thread pool for asynchronous tasks."""
@@ -41,23 +42,23 @@ class LanComLoopManager(abc.ABC):
 
     def spin_task(self) -> None:
         """Start the event loop and run it forever."""
-        logger.info("Starting spin task")
+        _logger.info("Starting spin task")
         try:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
             self._running = True
             self._loop.run_forever()
         except Exception as e:
-            logger.error("Unexpected error in thread_task: %s", e)
+            _logger.error("Unexpected error in thread_task: %s", e)
             traceback.print_exc()
             raise e
         finally:
-            logger.info("Shutting down spin task")
+            _logger.info("Shutting down spin task")
             self._running = False
             if self._loop is not None:
                 self._loop.close()
             self._stopped_event.set()
-            logger.info("Spin task has been stopped")
+            _logger.info("Spin task has been stopped")
 
     def spin(self) -> None:
         """Start the spin task in a separate thread."""
@@ -77,14 +78,14 @@ class LanComLoopManager(abc.ABC):
             if self._loop is None:
                 raise RuntimeError("Event loop is not initialized")
             self._loop.call_soon_threadsafe(self._loop.stop)
-            logger.info("Event loop stop signal sent")
+            _logger.info("Event loop stop signal sent")
         except RuntimeError as e:
-            logger.error("One error occurred when stop loop manager: %s", e)
+            _logger.error("One error occurred when stop loop manager: %s", e)
         self._stopped_event.wait()
         assert self._executor is not None
         self._executor.shutdown(wait=True)
-        logger.info("Thread pool executor has been shut down")
-        logger.info("LanComLoopManager has been stopped")
+        _logger.info("Thread pool executor has been shut down")
+        _logger.info("LanComLoopManager has been stopped")
 
     async def run_in_executor(
         self,
@@ -125,9 +126,7 @@ class LanComLoopManager(abc.ABC):
         """
         if not self._loop:
             raise RuntimeError("The event loop is not running")
-        future = asyncio.run_coroutine_threadsafe(
-            task, self._loop
-        )
+        future = asyncio.run_coroutine_threadsafe(task, self._loop)
         if block:
             return future.result()
         return future

@@ -1,4 +1,4 @@
-# pyzerolancom
+# pyzlc
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-green)
@@ -7,7 +7,7 @@ A lightweight LAN communication framework for Python, providing node discovery a
 
 ## Overview
 
-pyzerolancom bridges the gap between heavyweight communication frameworks like ROS2 and low-level messaging libraries like ZeroMQ. It provides:
+pyzlc bridges the gap between heavyweight communication frameworks like ROS2 and low-level messaging libraries like ZeroMQ. It provides:
 
 - **Automatic node discovery** on LAN networks
 - **Publisher/Subscriber** messaging patterns
@@ -15,7 +15,7 @@ pyzerolancom bridges the gap between heavyweight communication frameworks like R
 - **Minimal dependencies** with a small footprint
 - **Simple API** for quick adoption
 
-pyzerolancom solves the node discovery problem that ZeroMQ lacks while avoiding the complexity and overhead of larger frameworks.
+pyzlc solves the node discovery problem that ZeroMQ lacks while avoiding the complexity and overhead of larger frameworks.
 
 ## Features
 
@@ -31,14 +31,14 @@ pyzerolancom solves the node discovery problem that ZeroMQ lacks while avoiding 
 ## Installation
 
 ```bash
-pip install pyzerolancom
+pip install pyzlc
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/pyzerolancom.git
-cd pyzerolancom
+git clone https://github.com/yourusername/pyzlc.git
+cd pyzlc
 pip install -e .
 ```
 
@@ -54,16 +54,16 @@ pip install -e .
 ### Initialize a Node
 
 ```python
-import pyzerolancom
+import pyzlc
 
 # Initialize a node with a name and IP
-node = pyzerolancom.init_node("my_node", "127.0.0.1")
+pyzlc.init("my_node", "127.0.0.1")
 ```
 
 ### Publisher Example
 
 ```python
-from pyzerolancom.nodes.lancom_socket import Publisher
+from pyzlc.nodes.lancom_socket import Publisher
 from time import sleep
 
 # Create a publisher
@@ -78,8 +78,8 @@ while True:
 ### Subscriber Example
 
 ```python
-from pyzerolancom.nodes.lancom_socket import Subscriber
-from pyzerolancom.utils.msg_utils import StrDecoder
+from pyzlc.nodes.lancom_socket import Subscriber
+from pyzlc.utils.msg_utils import StrDecoder
 
 # Define a callback for received messages
 def message_callback(msg):
@@ -95,8 +95,8 @@ node.spin()
 ### Service Example
 
 ```python
-from pyzerolancom.nodes.lancom_socket import Service
-from pyzerolancom.utils.msg_utils import StrEncoder, StrDecoder
+from pyzlc.nodes.lancom_socket import Service
+from pyzlc.utils.msg_utils import StrEncoder, StrDecoder
 
 # Define a service callback
 def service_handler(request):
@@ -113,8 +113,8 @@ node.spin()
 ### Service Client Example
 
 ```python
-from pyzerolancom.nodes.lancom_socket import ServiceProxy
-from pyzerolancom.utils.msg_utils import StrEncoder, StrDecoder
+from pyzlc.nodes.lancom_socket import ServiceProxy
+from pyzlc.utils.msg_utils import StrEncoder, StrDecoder
 
 # Make a request to a service
 response = ServiceProxy.request("my_service", StrEncoder, StrDecoder, "Hello Service!")
@@ -126,8 +126,8 @@ print(f"Response: {response}")
 For continuous data publishing:
 
 ```python
-from pyzerolancom.nodes.lancom_socket import Streamer
-from pyzerolancom.utils.msg_utils import StrEncoder
+from pyzlc.nodes.lancom_socket import Streamer
+from pyzlc.utils.msg_utils import StrEncoder
 
 # Define a data source function
 def get_sensor_data():
@@ -144,7 +144,7 @@ node.spin()
 
 ### Multiple Nodes Communication
 
-pyzerolancom supports communication between multiple nodes across different processes or even machines:
+pyzlc supports communication between multiple nodes across different processes or even machines:
 
 ```python
 # See examples/multiple_nodes_example.py for a complete implementation
@@ -155,7 +155,7 @@ pyzerolancom supports communication between multiple nodes across different proc
 You can create custom encoders and decoders for your own message formats:
 
 ```python
-from pyzerolancom.utils.msg_utils import MsgpackEncoder, MsgpackDecoder
+from pyzlc.utils.msg_utils import MsgpackEncoder, MsgpackDecoder
 
 # Example with msgpack
 publisher.publish_dict({"sensor": "temperature", "value": 22.5})
@@ -166,7 +166,7 @@ subscriber = Subscriber("my_topic", MsgpackDecoder, my_callback)
 
 ## Architecture
 
-pyzerolancom uses a combination of:
+pyzlc uses a combination of:
 
 1. **Multicast Heartbeats**: For node discovery
 2. **ZeroMQ PUB/SUB**: For topic-based messaging
@@ -179,8 +179,8 @@ pyzerolancom uses a combination of:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/pyzerolancom.git
-cd pyzerolancom
+git clone https://github.com/yourusername/pyzlc.git
+cd pyzlc
 
 # Install development dependencies
 pip install -e .

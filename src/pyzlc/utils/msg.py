@@ -2,17 +2,17 @@ import asyncio
 import socket
 import struct
 import uuid
-from typing import Optional, Union, Dict, TypeAlias
+from typing import Optional, Union, Dict
 
 import zmq
 import zmq.asyncio
 
 from .node_info import HashIdentifier
-from .log import logger
+from .log import _logger
 
-Message: TypeAlias = Union[Dict, str]
-Request: TypeAlias = Union[Dict, str]
-Response: TypeAlias = Union[Dict, str]
+Message = Union[Dict, str]
+Request = Union[Dict, str]
+Response = Union[Dict, str]
 
 
 def create_hash_identifier() -> HashIdentifier:
@@ -26,10 +26,14 @@ def create_hash_identifier() -> HashIdentifier:
 
     return str(uuid.uuid4())
 
-def get_socket_addr(zmq_socket: Union[zmq.Socket, zmq.asyncio.Socket]) -> tuple[str, int]:
+
+def get_socket_addr(
+    zmq_socket: Union[zmq.Socket, zmq.asyncio.Socket],
+) -> tuple[str, int]:
     """Get the address and port of a ZMQ socket."""
     endpoint: bytes = zmq_socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
     return endpoint.decode(), int(endpoint.decode().split(":")[-1])
+
 
 def calculate_broadcast_addr(ip_addr: str) -> str:
     """Calculate the broadcast address for a given IP address."""
@@ -37,6 +41,7 @@ def calculate_broadcast_addr(ip_addr: str) -> str:
     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
     return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
+
 
 async def send_bytes_request(
     addr: str, service_name: str, bytes_msgs: bytes, timeout: float = 1.0
@@ -52,7 +57,7 @@ async def send_bytes_request(
         # Wait for a response with a timeout.
         response = await asyncio.wait_for(sock.recv(), timeout=timeout)
     except asyncio.TimeoutError:
-        logger.error("Request %s timed out for %s s.", service_name, timeout)
+        _logger.error("Request %s timed out for %s s.", service_name, timeout)
     finally:
         sock.disconnect(addr)
         sock.close()
