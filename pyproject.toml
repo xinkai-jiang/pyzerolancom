@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyzlc"
 version = "1.1.1"
-description="A cross-environment tool to publish objects from simulation for Augmented Reality and Human Robot Interaction."
+description="A lightweight ZeroMQ-based framework for high-performance, cross-environment communication across Local Area Networks."
 dependencies = [
     "msgpack",
     "pyzmq",
