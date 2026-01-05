@@ -13,7 +13,9 @@ def create_topic_callback(topic_name: str):
 if __name__ == "__main__":
     pyzlc.init("TopicExampleNode", "127.0.0.1")
     publisher = pyzlc.Publisher("example_topic")
-    pyzlc.register_subscriber_handler("example_topic", create_topic_callback("example_topic"))
+    pyzlc.register_subscriber_handler(
+        "example_topic", create_topic_callback("example_topic")
+    )
     while pyzlc.LanComNode.get_instance().running:
         publisher.publish("Hello, pyzlc!")
         pyzlc.info("Published message to topic 'example_topic'")

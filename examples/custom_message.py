@@ -5,6 +5,7 @@ import pyzlc
 
 class CustomMessage(TypedDict):
     """A custom message structure."""
+
     count: int
     name: str
     data: List[float]

@@ -7,6 +7,7 @@ SUB = zmq.SUB
 REQ = zmq.REQ
 REP = zmq.REP
 
+
 class ZMQSocketManager:
     """Singleton class to manage ZMQ sockets."""
 

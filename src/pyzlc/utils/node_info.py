@@ -10,8 +10,10 @@ ServiceName = str
 # SocketInfo & NodeInfo
 # =======================
 
+
 class SocketInfo(TypedDict):
     """Socket information structure."""
+
     name: str
     ip: str
     port: int
@@ -19,12 +21,14 @@ class SocketInfo(TypedDict):
 
 class NodeInfo(TypedDict):
     """Node information structure."""
+
     nodeID: str
     infoID: int
     name: str
     ip: str
     topics: List[SocketInfo]
     services: List[SocketInfo]
+
 
 class BinWriter:
     def __init__(self):
@@ -47,6 +51,7 @@ class BinWriter:
         # Direct extend is faster than checking length in Python
         # if you are sure about the data source.
         self.buf.extend(s.encode("utf-8"))
+
 
 class BinReader:
     def __init__(self, data: bytes):
@@ -73,11 +78,13 @@ class BinReader:
         self.pos += length
         return s
 
+
 # Optimized Serialization Flow
 def encode_socket_info_to(info: SocketInfo, writer: BinWriter):
     """Writes directly into an existing writer to avoid allocations."""
     writer.write_string(info["name"])
     writer.write_u16(info["port"])
+
 
 def encode_node_info(info: NodeInfo) -> bytes:
     writer = BinWriter()
@@ -88,7 +95,7 @@ def encode_node_info(info: NodeInfo) -> bytes:
 
     writer.write_u16(len(info["topics"]))
     for topic in info["topics"]:
-        encode_socket_info_to(topic, writer) # No new writer created
+        encode_socket_info_to(topic, writer)  # No new writer created
 
     writer.write_u16(len(info["services"]))
     for service in info["services"]:
@@ -102,6 +109,7 @@ def decode_socket_info(reader: BinReader, ip: str) -> SocketInfo:
     name = reader.read_string()
     port = reader.read_u16()
     return SocketInfo(name=name, ip=ip, port=port)
+
 
 def decode_node_info(data: bytes) -> NodeInfo:
     """Decode NodeInfo from bytes."""
@@ -127,5 +135,5 @@ def decode_node_info(data: bytes) -> NodeInfo:
         name=name,
         ip=ip,
         topics=topics,
-        services=services
+        services=services,
     )

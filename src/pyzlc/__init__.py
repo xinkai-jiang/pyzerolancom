@@ -53,7 +53,6 @@ __all__: List[str] = [
 ]
 
 
-
 def init(node_name: str, node_ip: str) -> None:
     """Initialize the LanCom node singleton."""
     if LanComNode.instance is not None:
@@ -80,12 +79,14 @@ def spin() -> None:
     finally:
         _logger.info("LanCom node has been stopped")
 
+
 def call(
     service_name: str,
     request: Any,
 ) -> Any:
     """Call a service with the specified name and request."""
     ServiceProxy.request(service_name, request)
+
 
 def register_service_handler(
     service_name: str,
@@ -105,6 +106,7 @@ def register_subscriber_handler(
     subscriber_manager = LanComNode.get_instance().subscriber_manager
     subscriber_manager.add_subscriber(topic_name, callback)
 
+
 def wait_for_service(
     service_name: str,
     timeout: float = 5.0,
@@ -120,6 +122,7 @@ def wait_for_service(
             )
         time.sleep(check_interval)
         waited_time += check_interval
+
 
 def check_node_info(node_name: str) -> Optional[NodeInfo]:
     """Check the node information."""

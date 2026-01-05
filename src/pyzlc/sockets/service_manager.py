@@ -13,6 +13,7 @@ from ..utils.msg import get_socket_addr, RequestT, ResponseT, ResponseStatus
 HandlerFunc = Callable[[RequestT], ResponseT]
 ServiceCallback = Callable[[bytes], Optional[bytes]]
 
+
 class ServiceManager:
     """Manages services using a REP socket."""
 
@@ -32,6 +33,7 @@ class ServiceManager:
     @staticmethod
     def _wrap_handler(handler: HandlerFunc) -> ServiceCallback:
         """Static helper to wrap a standard handler with msgpack logic."""
+
         def wrapper(request_bytes: bytes) -> bytes:
             # Unpack the request
             try:
@@ -42,6 +44,7 @@ class ServiceManager:
             except msgpack.ExtraData as e:
                 _logger.error(f"Message unpacking error: {e}")
                 return b""
+
         return wrapper
 
     def register_service(self, service_name: str, handler: HandlerFunc) -> None:
@@ -75,19 +78,27 @@ class ServiceManager:
                     timeout=2.0,
                 )
                 # packed_result = msgpack.packb(result, use_bin_type=True)
-                await _socket.send_multipart([ResponseStatus.SUCCESS.encode(), packed_result])
+                await _socket.send_multipart(
+                    [ResponseStatus.SUCCESS.encode(), packed_result]
+                )
             except asyncio.TimeoutError:
                 _logger.error("Timeout: callback function took too long")
-                await _socket.send_multipart([ResponseStatus.SERVICE_TIMEOUT.encode(), ""])
+                await _socket.send_multipart(
+                    [ResponseStatus.SERVICE_TIMEOUT.encode(), ""]
+                )
             except msgpack.ExtraData as e:
                 _logger.error(f"Message unpacking error: {e}")
-                await _socket.send_multipart([ResponseStatus.INVALID_RESPONSE.encode(), ""])
+                await _socket.send_multipart(
+                    [ResponseStatus.INVALID_RESPONSE.encode(), ""]
+                )
             except Exception as e:
                 _logger.error(
                     f"One error occurred when processing the Service {service_name}: {e}"
                 )
                 traceback.print_exc()
-                await _socket.send_multipart([ResponseStatus.UNKNOWN_ERROR.encode(), ""])
+                await _socket.send_multipart(
+                    [ResponseStatus.UNKNOWN_ERROR.encode(), ""]
+                )
                 raise e
         _logger.info("Service loop has been stopped")
 

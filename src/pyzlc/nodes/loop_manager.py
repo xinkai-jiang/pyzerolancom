@@ -14,6 +14,7 @@ from ..utils.log import _logger
 
 TaskReturnT = TypeVar("TaskReturnT")
 
+
 class LanComLoopManager(abc.ABC):
     """Manages the event loop and thread pool for asynchronous tasks."""
 
@@ -89,13 +90,11 @@ class LanComLoopManager(abc.ABC):
         _logger.info("LanComLoopManager has been stopped")
 
     async def run_in_executor(
-        self,
-        func: Callable[..., TaskReturnT],
-        *args: Any
+        self, func: Callable[..., TaskReturnT], *args: Any
     ) -> TaskReturnT:
         """
         Run a synchronous function in the executor.
-        
+
         Args:
             func: The callable to run.
             *args: Positional arguments for the function.
@@ -106,7 +105,7 @@ class LanComLoopManager(abc.ABC):
         if self._loop is None:
             raise RuntimeError("Event loop is not initialized")
 
-        # In Python 3.9, positional args are natively supported 
+        # In Python 3.9, positional args are natively supported
         # and highly efficient in run_in_executor.
         return await self._loop.run_in_executor(self._executor, func, *args)
 
@@ -130,8 +129,7 @@ class LanComLoopManager(abc.ABC):
         return asyncio.run_coroutine_threadsafe(task, self._loop)
 
     def submit_loop_task_and_wait(
-        self,
-        task: Coroutine[Any, Any, TaskReturnT]
+        self, task: Coroutine[Any, Any, TaskReturnT]
     ) -> TaskReturnT:
         """Submit a coroutine task to the event loop.
 

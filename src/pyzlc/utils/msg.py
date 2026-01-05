@@ -16,11 +16,13 @@ MessageT = Union[Dict, str]
 RequestT = Union[Dict, str, Empty]
 ResponseT = Union[Dict, str, Empty]
 
+
 class ResponseStatus:
     """
     Namespace for service response status strings.
     Matches the C++ ZeroLanCom implementation.
     """
+
     SUCCESS: Final[str] = "SUCCESS"
     NOSERVICE: Final[str] = "NOSERVICE"
     INVALID_RESPONSE: Final[str] = "INVALID_RESPONSE"
@@ -33,6 +35,7 @@ class ResponseStatus:
     def is_error(status: str) -> bool:
         """Helper to validate incoming status strings."""
         return status != ResponseStatus.SUCCESS
+
 
 def create_hash_identifier() -> HashIdentifier:
     """

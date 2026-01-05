@@ -15,6 +15,7 @@ def register_service_handler_callback(service_name: str) -> Callable[[str], str]
             pyzlc.error("Error in service %s: %s", service_name, e)
             traceback.print_exc()
             raise e
+
     return service_callback
 
 
