@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-green)
 
-A lightweight LAN communication framework for Python, providing node discovery and pub/sub messaging on local networks.
+A lightweight LAN communication framework based on for Python, providing node discovery and pub/sub messaging on local networks.
 
 ## Overview
 
@@ -32,14 +32,6 @@ pyzlc solves the node discovery problem that ZeroMQ lacks while avoiding the com
 
 ```bash
 pip install pyzlc
-```
-
-Or install from source:
-
-```bash
-git clone https://github.com/yourusername/pyzlc.git
-cd pyzlc
-pip install -e .
 ```
 
 ## Requirements

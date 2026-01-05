@@ -1,7 +1,6 @@
 from __future__ import annotations
-from typing import Callable, Any
+from typing import Callable, Optional, Dict
 import traceback
-import inspect
 import asyncio
 import zmq.asyncio
 import msgpack
@@ -9,44 +8,18 @@ import msgpack
 from zmq.asyncio import Socket as AsyncSocket
 from ..utils.log import _logger
 from ..nodes.loop_manager import LanComLoopManager
-from ..utils.msg import get_socket_addr
+from ..utils.msg import get_socket_addr, RequestT, ResponseT, ResponseStatus
 
-
-def non_argument_func_wrapper(func: Callable) -> Callable:
-    """Wrap a function with no arguments to accept bytes and return bytes."""
-
-    def wrapper(_: bytes):
-        result = func()
-        if result is None:
-            return b""
-        return msgpack.packb(result, use_bin_type=True)
-
-    return wrapper
-
-
-def argument_func_wrapper(func: Callable) -> Callable:
-    """Wrap a function with one argument to accept bytes and return bytes."""
-
-    def wrapper(request_bytes: bytes):
-        arg = msgpack.unpackb(request_bytes, raw=False)
-        result = func(arg)
-        if result is None:
-            return b""
-        return msgpack.packb(result, use_bin_type=True)
-
-    return wrapper
-
-Empty = type(None)
-empty = None
+HandlerFunc = Callable[[RequestT], ResponseT]
+ServiceCallback = Callable[[bytes], Optional[bytes]]
 
 class ServiceManager:
     """Manages services using a REP socket."""
 
     def __init__(self, url: str) -> None:
         """Initialize the ServiceManager with a REP socket."""
-        self.services: dict[str, dict] = {}
         self.res_socket: AsyncSocket = zmq.asyncio.Context().socket(zmq.REP)
-        self.callable_services: dict[str, Callable[[bytes], bytes]] = {}
+        self.callable_services: Dict[str, ServiceCallback] = {}
         self.res_socket.bind(url)
         url, self.port = get_socket_addr(self.res_socket)
         _logger.info("ServiceManager REP socket bound to %s", url)
@@ -56,32 +29,38 @@ class ServiceManager:
             self.service_loop(self.res_socket, self.callable_services)
         )
 
-    def register_service(self, service_name: str, handler: Callable) -> None:
+    @staticmethod
+    def _wrap_handler(handler: HandlerFunc) -> ServiceCallback:
+        """Static helper to wrap a standard handler with msgpack logic."""
+        def wrapper(request_bytes: bytes) -> bytes:
+            # Unpack the request
+            try:
+                arg = msgpack.unpackb(request_bytes, raw=False)
+                result = msgpack.packb(handler(arg), use_bin_type=True)
+                assert result is not None, "msgpack.packb returned None"
+                return result
+            except msgpack.ExtraData as e:
+                _logger.error(f"Message unpacking error: {e}")
+                return b""
+        return wrapper
+
+    def register_service(self, service_name: str, handler: HandlerFunc) -> None:
         """Register a service with a given name and handler function."""
-        sig = inspect.signature(handler)
-        params = list(sig.parameters.values())
-        if len(params) == 0:
-            self.callable_services[service_name] = non_argument_func_wrapper(handler)
-        elif len(params) == 1:
-            self.callable_services[service_name] = argument_func_wrapper(handler)
-        else:
-            raise TypeError(
-                f"Service '{service_name}' handler must have 0 or 1 parameter."
-            )
+        self.callable_services[service_name] = self._wrap_handler(handler)
         _logger.info(f"Service '{service_name}' registered successfully.")
 
     async def service_loop(
         self,
-        service_socket: zmq.asyncio.Socket,
-        services: dict[str, Callable[[Any], Any]],
+        _socket: zmq.asyncio.Socket,
+        services: dict[str, ServiceCallback],
     ) -> None:
         """Asynchronously handles incoming service requests."""
         while self._running:
             try:
-                event = await service_socket.poll()
+                event = await _socket.poll()
                 if not event:
                     continue
-                name_bytes, request = await service_socket.recv_multipart()
+                name_bytes, request = await _socket.recv_multipart()
             except Exception as e:
                 _logger.error(f"Error occurred when receiving request: {e}")
                 traceback.print_exc()
@@ -91,24 +70,24 @@ class ServiceManager:
                 _logger.error(f"Service {service_name} is not available")
                 continue
             try:
-                result = await asyncio.wait_for(
+                packed_result = await asyncio.wait_for(
                     self.loop_manager.run_in_executor(services[service_name], request),
                     timeout=2.0,
                 )
-                packed_result = msgpack.packb(result, use_bin_type=True)
-                await service_socket.send(packed_result)
+                # packed_result = msgpack.packb(result, use_bin_type=True)
+                await _socket.send_multipart([ResponseStatus.SUCCESS.encode(), packed_result])
             except asyncio.TimeoutError:
                 _logger.error("Timeout: callback function took too long")
-                await service_socket.send_string("TIMEOUT")
+                await _socket.send_multipart([ResponseStatus.SERVICE_TIMEOUT.encode(), ""])
             except msgpack.ExtraData as e:
                 _logger.error(f"Message unpacking error: {e}")
-                await service_socket.send_string("UNPACKING_ERROR")
+                await _socket.send_multipart([ResponseStatus.INVALID_RESPONSE.encode(), ""])
             except Exception as e:
                 _logger.error(
                     f"One error occurred when processing the Service {service_name}: {e}"
                 )
                 traceback.print_exc()
-                await service_socket.send_string("ERROR")
+                await _socket.send_multipart([ResponseStatus.UNKNOWN_ERROR.encode(), ""])
                 raise e
         _logger.info("Service loop has been stopped")
 

@@ -1,8 +1,13 @@
-# Add these lines at the top of your pyzlc/__init__.py
+"""
+pyzlc: A lightweight Python library for LanCom communication based on ZeroMQ.
+
+This package provides high-level utilities for node initialization, 
+message spinning, and service registration.
+"""
 from __future__ import annotations
 import asyncio
 import platform
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, List
 import time
 import importlib.metadata
 
@@ -10,7 +15,7 @@ from .nodes.lancom_node import LanComNode
 from .nodes.nodes_info_manager import NodeInfo, LocalNodeInfo, NodesInfoManager
 from .sockets.service_client import ServiceProxy
 from .sockets.publisher import Publisher
-from .sockets.service_manager import Empty, empty
+from .utils.msg import Empty, empty
 from .utils.log import _logger
 
 
@@ -25,8 +30,10 @@ except importlib.metadata.PackageNotFoundError:
     # package is not installed (e.g. running from source)
     __version__ = "unknown"
 
+__author__ = "Xinkai Jiang"
+__email__ = "jiangxinkai98@gmail.com"
 
-__all__ = [
+__all__: List[str] = [
     "Publisher",
     "init",
     "sleep",
@@ -111,9 +118,6 @@ def wait_for_service(
             raise TimeoutError(
                 f"Service {service_name} is online after {timeout} seconds."
             )
-        _logger.info(
-            "Waiting for service %s to be registered locally...", service_name
-        )
         time.sleep(check_interval)
         waited_time += check_interval
 

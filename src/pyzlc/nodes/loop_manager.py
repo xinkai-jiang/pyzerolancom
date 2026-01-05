@@ -90,24 +90,25 @@ class LanComLoopManager(abc.ABC):
 
     async def run_in_executor(
         self,
-        func: Callable,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
-        """Run a function in the event loop's executor.
-
+        func: Callable[..., TaskReturnT],
+        *args: Any
+    ) -> TaskReturnT:
+        """
+        Run a synchronous function in the executor.
+        
         Args:
-            task (Coroutine): The coroutine task to be submitted.
-            block (bool, optional): Whether to block until the task is complete. Defaults to False.
-        Raises:
-            RuntimeError: If the event loop is not running.
+            func: The callable to run.
+            *args: Positional arguments for the function.
 
         Returns:
-            Union[concurrent.futures.Future, Any]: The future representing the execution of the coroutine.
+            The result of the function (can be a single value or a tuple).
         """
         if self._loop is None:
             raise RuntimeError("Event loop is not initialized")
-        return await self._loop.run_in_executor(self._executor, func, *args, **kwargs)
+
+        # In Python 3.9, positional args are natively supported 
+        # and highly efficient in run_in_executor.
+        return await self._loop.run_in_executor(self._executor, func, *args)
 
     def submit_loop_task(
         self,

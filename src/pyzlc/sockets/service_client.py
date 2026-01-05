@@ -6,7 +6,7 @@ import msgpack
 from ..nodes.nodes_info_manager import NodesInfoManager
 from ..nodes.loop_manager import LanComLoopManager
 from ..utils.log import _logger
-from ..utils.msg import send_bytes_request, ResponseT, RequestT
+from ..utils.msg import send_bytes_request, ResponseT, RequestT, ResponseStatus
 
 
 class ServiceProxy:
@@ -32,5 +32,13 @@ class ServiceProxy:
         response = loop_manager.submit_loop_task_and_wait(
             send_bytes_request(addr, service_name, request_bytes),
         )
-        # TODO: check the status of response
+        if response is None:
+            return None
+        if response[0].decode() != ResponseStatus.SUCCESS:
+            _logger.error(
+                "Service %s returned error status: %s",
+                service_name,
+                response[0].decode(),
+            )
+            return None
         return msgpack.unpackb(response[1]) if response else None
