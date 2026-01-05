@@ -1,11 +1,13 @@
 """Client proxy for calling services."""
+
 from typing import Optional
 import msgpack
 
 from ..nodes.nodes_info_manager import NodesInfoManager
 from ..nodes.loop_manager import LanComLoopManager
-from ..utils.log import logger
-from ..utils.msg import send_bytes_request, Response, Request
+from ..utils.log import _logger
+from ..utils.msg import send_bytes_request, ResponseT, RequestT, ResponseStatus
+
 
 class ServiceProxy:
     """Client proxy for calling services."""
@@ -13,22 +15,30 @@ class ServiceProxy:
     @staticmethod
     def request(
         service_name: str,
-        request: Request,
-    ) -> Optional[Response]:
+        request: RequestT,
+    ) -> Optional[ResponseT]:
         """Send a request to a service and get the response."""
         nodes_manager = NodesInfoManager.get_instance()
         loop_manager = LanComLoopManager.get_instance()
         service_info = nodes_manager.get_service_info(service_name)
         if service_info is None:
-            logger.warning("Service %s is not exist", service_name)
+            _logger.warning("Service %s is not exist", service_name)
             return None
         addr = f"tcp://{service_info['ip']}:{service_info['port']}"
         request_bytes = msgpack.packb(request)
         if request_bytes is None:
-            logger.error("Failed to pack request for service %s", service_name)
+            _logger.error("Failed to pack request for service %s", service_name)
             return None
-        response = loop_manager.submit_loop_task(
+        response = loop_manager.submit_loop_task_and_wait(
             send_bytes_request(addr, service_name, request_bytes),
-            True,
         )
-        return msgpack.unpackb(response)
+        if response is None:
+            return None
+        if response[0].decode() != ResponseStatus.SUCCESS:
+            _logger.error(
+                "Service %s returned error status: %s",
+                service_name,
+                response[0].decode(),
+            )
+            return None
+        return msgpack.unpackb(response[1]) if response else None

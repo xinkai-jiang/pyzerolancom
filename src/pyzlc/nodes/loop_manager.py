@@ -8,9 +8,12 @@ import traceback
 import threading
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Coroutine, Optional, Callable, Union
+from typing import Any, Coroutine, Optional, Callable, TypeVar
 
-from ..utils.log import logger
+from ..utils.log import _logger
+
+TaskReturnT = TypeVar("TaskReturnT")
+
 
 class LanComLoopManager(abc.ABC):
     """Manages the event loop and thread pool for asynchronous tasks."""
@@ -41,23 +44,23 @@ class LanComLoopManager(abc.ABC):
 
     def spin_task(self) -> None:
         """Start the event loop and run it forever."""
-        logger.info("Starting spin task")
+        _logger.info("Starting spin task")
         try:
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
             self._running = True
             self._loop.run_forever()
         except Exception as e:
-            logger.error("Unexpected error in thread_task: %s", e)
+            _logger.error("Unexpected error in thread_task: %s", e)
             traceback.print_exc()
             raise e
         finally:
-            logger.info("Shutting down spin task")
+            _logger.info("Shutting down spin task")
             self._running = False
             if self._loop is not None:
                 self._loop.close()
             self._stopped_event.set()
-            logger.info("Spin task has been stopped")
+            _logger.info("Spin task has been stopped")
 
     def spin(self) -> None:
         """Start the spin task in a separate thread."""
@@ -77,57 +80,69 @@ class LanComLoopManager(abc.ABC):
             if self._loop is None:
                 raise RuntimeError("Event loop is not initialized")
             self._loop.call_soon_threadsafe(self._loop.stop)
-            logger.info("Event loop stop signal sent")
+            _logger.info("Event loop stop signal sent")
         except RuntimeError as e:
-            logger.error("One error occurred when stop loop manager: %s", e)
+            _logger.error("One error occurred when stop loop manager: %s", e)
         self._stopped_event.wait()
         assert self._executor is not None
         self._executor.shutdown(wait=True)
-        logger.info("Thread pool executor has been shut down")
-        logger.info("LanComLoopManager has been stopped")
+        _logger.info("Thread pool executor has been shut down")
+        _logger.info("LanComLoopManager has been stopped")
 
     async def run_in_executor(
-        self,
-        func: Callable,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
-        """Run a function in the event loop's executor.
+        self, func: Callable[..., TaskReturnT], *args: Any
+    ) -> TaskReturnT:
+        """
+        Run a synchronous function in the executor.
 
         Args:
-            task (Coroutine): The coroutine task to be submitted.
-            block (bool, optional): Whether to block until the task is complete. Defaults to False.
-        Raises:
-            RuntimeError: If the event loop is not running.
+            func: The callable to run.
+            *args: Positional arguments for the function.
 
         Returns:
-            Union[concurrent.futures.Future, Any]: The future representing the execution of the coroutine.
+            The result of the function (can be a single value or a tuple).
         """
         if self._loop is None:
             raise RuntimeError("Event loop is not initialized")
-        return await self._loop.run_in_executor(self._executor, func, *args, **kwargs)
+
+        # In Python 3.9, positional args are natively supported
+        # and highly efficient in run_in_executor.
+        return await self._loop.run_in_executor(self._executor, func, *args)
 
     def submit_loop_task(
         self,
-        task: Coroutine,
-        block: bool = False,
-    ) -> Union[concurrent.futures.Future, Any]:
+        task: Coroutine[Any, Any, TaskReturnT],
+    ) -> concurrent.futures.Future:
         """Submit a coroutine task to the event loop.
 
         Args:
-            task (Coroutine): The coroutine task to be submitted.
+            task (Coroutine[Any, Any, TaskReturnT]): The coroutine task to be submitted.
             block (bool, optional): Whether to block until the task is complete. Defaults to False.
         Raises:
             RuntimeError: If the event loop is not running.
 
         Returns:
-            Union[concurrent.futures.Future, Any]: The future representing the execution of the coroutine.
+            Union[concurrent.futures.Future, TaskReturnT]: The future representing the execution of the coroutine.
         """
         if not self._loop:
             raise RuntimeError("The event loop is not running")
-        future = asyncio.run_coroutine_threadsafe(
-            task, self._loop
-        )
-        if block:
-            return future.result()
-        return future
+        return asyncio.run_coroutine_threadsafe(task, self._loop)
+
+    def submit_loop_task_and_wait(
+        self, task: Coroutine[Any, Any, TaskReturnT]
+    ) -> TaskReturnT:
+        """Submit a coroutine task to the event loop.
+
+        Args:
+            task (Coroutine[Any, Any, TaskReturnT]): The coroutine task to be submitted.
+            block (bool, optional): Whether to block until the task is complete. Defaults to False.
+        Raises:
+            RuntimeError: If the event loop is not running.
+
+        Returns:
+            Union[concurrent.futures.Future, TaskReturnT]: The future representing the execution of the coroutine.
+        """
+        if not self._loop:
+            raise RuntimeError("The event loop is not running")
+        future = asyncio.run_coroutine_threadsafe(task, self._loop)
+        return future.result()
