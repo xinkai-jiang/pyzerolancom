@@ -84,9 +84,10 @@ def spin() -> None:
 def call(
     service_name: str,
     request: Any,
+    timeout: float = 2.0,
 ) -> Any:
     """Call a service with the specified name and request."""
-    ServiceProxy.request(service_name, request)
+    return ServiceProxy.request(service_name, request, timeout)
 
 
 def register_service_handler(

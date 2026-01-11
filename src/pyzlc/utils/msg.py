@@ -66,7 +66,7 @@ def calculate_broadcast_addr(ip_addr: str) -> str:
 
 
 async def send_bytes_request(
-    addr: str, service_name: str, bytes_msgs: bytes, timeout: float = 1.0
+    addr: str, service_name: str, bytes_msgs: bytes, timeout: float
 ) -> Optional[List[bytes]]:
     """Send a bytes request to the specified address and return the response."""
     try:
