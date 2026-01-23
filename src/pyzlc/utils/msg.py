@@ -38,16 +38,15 @@ class ResponseStatus:
         return status != ResponseStatus.SUCCESS
 
 
-
 def is_in_same_subnet(ip1: str, ip2: str, subnet_mask: str = "255.255.255.0") -> bool:
     """
     Determines if two IP addresses reside within the same logical subnet.
-    
+
     Args:
         ip1: The first IP address (e.g., the local node IP).
         ip2: The second IP address (e.g., the discovered remote IP).
         subnet_mask: The mask defining the subnet range (default is /24).
-        
+
     Returns:
         bool: True if both IPs share the same network prefix, False otherwise.
     """
@@ -55,14 +54,13 @@ def is_in_same_subnet(ip1: str, ip2: str, subnet_mask: str = "255.255.255.0") ->
         # Create a network object using the first IP and the mask.
         # strict=False allows the use of a host IP instead of a network address.
         network = ipaddress.ip_network(f"{ip1}/{subnet_mask}", strict=False)
-        
+
         # Check if the second IP address is contained within that network.
         return ipaddress.ip_address(ip2) in network
     except ValueError as e:
         # Log error if IP format or mask is invalid.
         print(f"Error validating IP subnet: {e}")
         return False
-
 
 
 def create_hash_identifier() -> HashIdentifier:

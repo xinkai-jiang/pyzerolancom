@@ -85,13 +85,16 @@ class NodesInfoManager:
     async def check_heartbeat(self) -> None:
         """Periodically check the heartbeat of nodes."""
         while self.running:
+            removed_nodes = []
             for node_id, last_heartbeat in self.nodes_heartbeat.items():
                 if time.monotonic() - last_heartbeat > 3:
                     _logger.warning(
                         "Node %s is considered offline",
                         self.nodes_info[node_id]["name"],
                     )
-                    self.remove_node(node_id)
+                    removed_nodes.append(node_id)
+            for node_id in removed_nodes:
+                self.remove_node(node_id)
             await asyncio.sleep(1)
 
 

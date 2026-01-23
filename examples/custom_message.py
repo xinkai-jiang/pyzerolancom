@@ -5,6 +5,7 @@ import pyzlc
 
 class CustomMessage(TypedDict):
     """A custom message structure."""
+
     count: int
     name: str
     data: List[float]
@@ -23,7 +24,5 @@ if __name__ == "__main__":
     pyzlc.register_subscriber_handler("CustomMessage", message_callback)
     pub = pyzlc.Publisher("CustomMessage")
     for _ in range(10):
-        pub.publish(
-            CustomMessage(count=42, name="example", data=[1.0, 2.0, 3.0])
-        )
+        pub.publish(CustomMessage(count=42, name="example", data=[1.0, 2.0, 3.0]))
         pyzlc.sleep(0.5)

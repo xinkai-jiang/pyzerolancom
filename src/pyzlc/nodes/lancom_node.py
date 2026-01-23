@@ -110,7 +110,7 @@ class LanComNode:
             self.nodes_manager.check_heartbeat()
         )
 
-    async def multicast_loop(self, interval=1.0):
+    async def multicast_loop(self, interval=0.5):
         """Send multicast heartbeat messages at regular intervals."""
         self.running = True
 

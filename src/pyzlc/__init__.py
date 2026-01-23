@@ -61,14 +61,17 @@ def init(node_name: str, node_ip: str) -> None:
         raise ValueError("Node is already initialized.")
     LanComNode.init(node_name, node_ip)
 
+
 def get_node() -> LanComNode:
     """Get the LanCom node singleton."""
     return LanComNode.get_instance()
+
 
 def get_nodes_info() -> List[NodeInfo]:
     """Get the list of known nodes' information."""
     nodes_manager = NodesInfoManager.get_instance()
     return list(nodes_manager.nodes_info.values())
+
 
 def sleep(duration: float) -> None:
     """Sleep for the specified duration in seconds."""
@@ -98,6 +101,7 @@ def call(
 ) -> Any:
     """Call a service with the specified name and request."""
     return ServiceProxy.request(service_name, request, timeout)
+
 
 async def async_call(
     service_name: str,
@@ -143,6 +147,7 @@ def wait_for_service(
         waited_time += check_interval
     return True
 
+
 def wait_for_service_async(
     service_name: str,
     timeout: float = 5.0,
@@ -161,12 +166,16 @@ def check_node_info(node_name: str) -> Optional[NodeInfo]:
     """Check the node information."""
     return NodesInfoManager.get_instance().check_node_by_name(node_name)
 
+
 def is_running() -> bool:
     """A simple function to indicate the module is loaded successfully."""
     assert LanComNode.instance is not None, "LanComNode is not initialized."
     return LanComNode.instance.running
 
-def submit_loop_task(task: Coroutine[Any, Any, TaskReturnT]) -> concurrent.futures.Future:
+
+def submit_loop_task(
+    task: Coroutine[Any, Any, TaskReturnT]
+) -> concurrent.futures.Future:
     """Submit a coroutine to the event loop."""
     assert LanComLoopManager is not None, "LanComNode is not initialized."
     return LanComLoopManager.get_instance().submit_loop_task(task)
