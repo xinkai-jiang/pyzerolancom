@@ -128,7 +128,17 @@ class LanComLoopManager(abc.ABC):
         """
         if not self._loop:
             raise RuntimeError("The event loop is not running")
-        return asyncio.run_coroutine_threadsafe(task, self._loop)
+
+        async def wrapper():
+            try:
+                result = await task
+            except Exception as e:
+                _logger.error("Error in submitted task: %s %s", task.__name__, e)
+                traceback.print_exc()
+                raise e
+            return result
+
+        return asyncio.run_coroutine_threadsafe(wrapper(), self._loop)
 
     def submit_loop_task_and_wait(
         self, task: Coroutine[Any, Any, TaskReturnT]
