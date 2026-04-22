@@ -10,6 +10,7 @@ dependencies = [
     "msgpack",
     "pyzmq",
     "colorama",
+    "typing-extensions",
 ]
 authors = [
   { name = "Xinkai Jiang", email = "jiangxinkai98@gmail.com" },

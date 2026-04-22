@@ -20,7 +20,7 @@ def message_callback(msg: CustomMessage):
 
 
 if __name__ == "__main__":
-    pyzlc.init("CustomMessageNode", "127.0.0.1")
+    pyzlc.init("CustomMessageNode", "127.0.0.1", log_level=pyzlc.LogLevel.DEBUG)
     pyzlc.register_subscriber_handler("CustomMessage", message_callback)
     pub = pyzlc.Publisher("CustomMessage")
     for _ in range(10):

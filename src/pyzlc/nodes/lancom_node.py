@@ -51,7 +51,7 @@ class LanComNode:
         group: str,
         group_port: int,
         group_name: str,
-        sub_group: bool = False,
+        default_group: bool = True,
     ) -> None:
         if group_name in cls.node_instances:
             raise ValueError(
@@ -61,7 +61,7 @@ class LanComNode:
             cls.node_instances[group_name] = LanComNode(
                 node_name, node_ip, group, group_port, group_name
             )
-        if not sub_group:
+        if default_group:
             if cls.default_instance is None:
                 cls.default_instance = cls.node_instances[group_name]
             else:

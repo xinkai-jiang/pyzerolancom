@@ -16,7 +16,7 @@ import concurrent.futures
 from .nodes.lancom_node import LanComNode
 from .nodes.nodes_info_manager import NodeInfo
 from .nodes.loop_manager import LanComLoopManager, DaemonThreadPoolExecutor, TaskReturnT
-from .sockets.service_client import zlc_request_async, zlc_request
+from .sockets.service_client import call, async_call
 from .sockets.publisher import Publisher, Streamer
 from .utils.msg import Empty, empty, _get_zlc_version
 from .utils.log import _logger, LogLevel
@@ -66,13 +66,13 @@ def init(
     group: str = "224.0.0.1",
     group_port: int = 7720,
     log_level: Union[LogLevel, int] = LogLevel.INFO,
-    sub_group: bool = False,
+    default_group: bool = True,
 ) -> None:
     set_log_level(log_level)
     """Initialize the LanCom node singleton."""
     if LanComNode.get(group_name) is not None:
         raise ValueError("Node is already initialized.")
-    LanComNode.init(node_name, node_ip, group, group_port, group_name, sub_group)
+    LanComNode.init(node_name, node_ip, group, group_port, group_name, default_group)
     register_service_handler(
         "get_node_info",
         LanComNode.get_instance(group_name)._get_node_info_handler,
@@ -123,26 +123,6 @@ def spin(group_name: Optional[str] = None) -> None:
     except KeyboardInterrupt:
         _logger.debug("LanCom node interrupted by user")
         LanComNode.get_instance(group_name).stop_node()
-
-
-def call(
-    service_name: str,
-    request: Any,
-    timeout: float = 2.0,
-    group_name: Optional[str] = None,
-) -> Any:
-    """Call a service with the specified name and request."""
-    return zlc_request(service_name, request, timeout, group_name)
-
-
-async def async_call(
-    service_name: str,
-    request: Any,
-    timeout: float = 2.0,
-    group_name: Optional[str] = None,
-) -> Any:
-    """Asynchronously call a service with the specified name and request."""
-    return await zlc_request_async(service_name, request, timeout, group_name)
 
 
 def register_service_handler(

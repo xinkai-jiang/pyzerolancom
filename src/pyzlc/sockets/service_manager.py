@@ -50,7 +50,7 @@ class ServiceManager:
     def register_service(self, service_name: str, handler: HandlerFunc) -> None:
         """Register a service with a given name and handler function."""
         self.callable_services[service_name] = self._wrap_handler(handler)
-        _logger.info(f"Service '{service_name}' registered successfully.")
+        _logger.debug(f"Service '{service_name}' registered successfully.")
 
     async def _handle_request(
         self, service_name: str, request: bytes, services: dict[str, ServiceCallback]
