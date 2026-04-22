@@ -19,29 +19,23 @@ from ..utils.msg import send_request
 class NodesInfoManager:
     """Manages information about nodes in the network."""
 
-    _instance: Optional[NodesInfoManager] = None
+    # _instance: Optional[NodesInfoManager] = None
 
-    @classmethod
-    def get_instance(cls) -> NodesInfoManager:
-        """Get the singleton instance of NodesInfoManager."""
-        if cls._instance is None:
-            raise ValueError("NodesInfoManager is not initialized yet.")
-        return cls._instance
+    # @classmethod
+    # def get_instance(cls) -> NodesInfoManager:
+    #     """Get the singleton instance of NodesInfoManager."""
+    #     if cls._instance is None:
+    #         raise ValueError("NodesInfoManager is not initialized yet.")
+    #     return cls._instance
 
-    def __init__(self, local_name: str, local_ip: str) -> None:
-        NodesInfoManager._instance = self
-        self.loop_manager = LanComLoopManager.get_instance()
+    def __init__(self, local_name: str, local_ip: str, loop_manager: LanComLoopManager) -> None:
+        # NodesInfoManager._instance = self
+        self.loop_manager = loop_manager
         self.running = True
         self.nodes_info: Dict[HashIdentifier, NodeInfo] = {}  # keyed by full nodeID
         self.nodes_info_id: Dict[HashIdentifier, int] = {}  # keyed by full nodeID
         self.nodes_heartbeat: Dict[HashIdentifier, float] = {}  # keyed by full nodeID
         self.unreplyed_heartbeats: set[HashIdentifier] = set()  # keyed by nodeID hash
-        # Map int32 node_hash to full nodeID for lookup
-        # self._hash_to_node_id: Dict[int, HashIdentifier] = {}
-        # self.local_name = local_name
-        # self.local_ip = local_ip
-        # self.local_node_id = create_hash_identifier()
-        # self.local_info_id: int = 0
         self.local_node_info: NodeInfo = NodeInfo(
             {
                 "name": local_name,
@@ -166,7 +160,7 @@ class NodesInfoManager:
             return
         if self.check_info(heartbeat_message.node_id, heartbeat_message.info_id):
             return
-        _logger.info(f"Fetching node info from {node_ip}:{heartbeat_message.service_port}")
+        _logger.debug(f"Fetching node info from {node_ip}:{heartbeat_message.service_port}")
         try:
             result = await send_request(
                 addr=f"tcp://{node_ip}:{heartbeat_message.service_port}",
@@ -182,6 +176,7 @@ class NodesInfoManager:
             node_info = cast(NodeInfo, result)
             node_info["ip"] = node_ip
             self.update_node(node_info)
+            _logger.debug(f"Updated node info for {node_info['name']} ({node_ip})")
 
     async def check_heartbeat(self, interval: float = 1.0) -> None:
         """Periodically check the heartbeat of nodes."""
