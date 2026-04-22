@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import abc
 import asyncio
 import concurrent.futures
 import time
@@ -19,16 +18,19 @@ class DaemonThreadPoolExecutor(ThreadPoolExecutor):
     """ThreadPoolExecutor that creates daemon threads, allowing program to exit cleanly."""
 
     _instance: Optional[DaemonThreadPoolExecutor] = None
+    _instance_lock = threading.Lock()
 
     @classmethod
     def get_instance(cls, max_workers: int = 3) -> DaemonThreadPoolExecutor:
         """Get the singleton instance of DaemonThreadPoolExecutor."""
         if cls._instance is None:
-            executor = DaemonThreadPoolExecutor(
-                max_workers=max_workers,
-                thread_name_prefix="LanComPool",
-            )
-            cls._instance = executor
+            with cls._instance_lock:
+                if cls._instance is None:
+                    executor = DaemonThreadPoolExecutor(
+                        max_workers=max_workers,
+                        thread_name_prefix="LanComPool",
+                    )
+                    cls._instance = executor
         return cls._instance
 
     @classmethod
@@ -73,17 +75,23 @@ class DaemonThreadPoolExecutor(ThreadPoolExecutor):
         return result
 
 
-class LanComLoopManager(abc.ABC):
+class LanComLoopManager:
     """Manages the event loop and thread pool for asynchronous tasks."""
 
-    # instance: Optional[LanComLoopManager] = None
+    instance: Optional[LanComLoopManager] = None
+    _instance_lock = threading.Lock()
 
-    # @classmethod
-    # def get_instance(cls) -> LanComLoopManager:
-    #     """Get the singleton instance of LanComLoopManager."""
-    #     if cls.instance is None:
-    #         cls.instance = cls()
-    #     return cls.instance
+    def __new__(cls, *args, **kwargs) -> LanComLoopManager:
+        if cls.instance is None:
+            with cls._instance_lock:
+                if cls.instance is None:
+                    cls.instance = super().__new__(cls)
+        return cls.instance
+
+    @classmethod
+    def get_instance(cls) -> LanComLoopManager:
+        """Get the singleton instance of LanComLoopManager."""
+        return cls()
 
     def __init__(self, max_workers: int = 3):
         """Initialize the LanComLoopManager with a thread pool executor.
@@ -91,16 +99,20 @@ class LanComLoopManager(abc.ABC):
         Args:
             max_workers (int, optional): The maximum number of worker threads. Defaults to 3.
         """
-        # LanComLoopManager.instance = self
+        if getattr(self, "_initialized", False):
+            return
+
+        self._initialized = True
         self._loop: Optional[AbstractEventLoop] = None
+        self._running: bool = False
+        self._stopped_event = threading.Event()
+        self._stop_lock = threading.Lock()
         # Use daemon threads so program can exit without waiting
         self._executor = DaemonThreadPoolExecutor.get_instance(max_workers=max_workers)
         self._spin_thread = threading.Thread(
             target=self.spin_task, name="LanComSpinTask", daemon=True
         )
         self._spin_thread.start()
-        self._running: bool = False
-        self._stopped_event = threading.Event()
         while self._loop is None:
             time.sleep(0.01)
 
@@ -134,25 +146,33 @@ class LanComLoopManager(abc.ABC):
 
     def stop(self):
         """Stop the event loop and shut down the thread pool executor."""
-        self._running = False
-        # When loop out of run_forver(), all the tasks are pending
-        # need to cancel them
-        for task in asyncio.all_tasks(self._loop):
-            task.cancel()
-        try:
-            if self._loop is None:
-                raise RuntimeError("Event loop is not initialized")
-            if self._loop.is_running():
-                self._loop.call_soon_threadsafe(self._loop.stop)
-            _logger.debug("Event loop stop signal sent")
-        except RuntimeError as e:
-            _logger.error("One error occurred when stop loop manager: %s", e)
-            traceback.print_exc()
-        self._stopped_event.wait()
-        assert self._executor is not None
-        self._executor.shutdown(wait=True)
-        _logger.debug("Thread pool executor has been shut down")
-        _logger.debug("LanComLoopManager has been stopped")
+        with self._stop_lock:
+            if self._stopped_event.is_set():
+                return
+
+            self._running = False
+            try:
+                if self._loop is None:
+                    raise RuntimeError("Event loop is not initialized")
+                # When loop exits run_forever(), all remaining tasks are still pending.
+                for task in asyncio.all_tasks(self._loop):
+                    task.cancel()
+                if self._loop.is_running():
+                    self._loop.call_soon_threadsafe(self._loop.stop)
+                _logger.debug("Event loop stop signal sent")
+            except RuntimeError as e:
+                _logger.error("One error occurred when stop loop manager: %s", e)
+                traceback.print_exc()
+
+            self._stopped_event.wait()
+            assert self._executor is not None
+            self._executor.shutdown(wait=True)
+            with DaemonThreadPoolExecutor._instance_lock:
+                DaemonThreadPoolExecutor._instance = None
+            with LanComLoopManager._instance_lock:
+                LanComLoopManager.instance = None
+            _logger.debug("Thread pool executor has been shut down")
+            _logger.debug("LanComLoopManager has been stopped")
 
     async def run_in_executor(
         self, func: Callable[..., TaskReturnT], *args: Any
@@ -221,4 +241,3 @@ class LanComLoopManager(abc.ABC):
             raise RuntimeError("The event loop is not running")
         future = asyncio.run_coroutine_threadsafe(task, self._loop)
         return future.result()
-

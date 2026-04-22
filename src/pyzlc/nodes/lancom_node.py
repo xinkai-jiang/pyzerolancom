@@ -84,7 +84,7 @@ class LanComNode:
         self.group_port = group_port
         self.group_name = group_name
         self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager()
-        self.loop_manager: LanComLoopManager = LanComLoopManager()
+        self.loop_manager: LanComLoopManager = LanComLoopManager.get_instance()
         self.nodes_info_manager: NodesInfoManager = NodesInfoManager(
             node_name, node_ip, self.loop_manager
         )
