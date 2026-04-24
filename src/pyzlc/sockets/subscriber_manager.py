@@ -1,9 +1,10 @@
 import traceback
-from typing import Callable, List, Any, Optional
-import asyncio
+from typing import Callable, Dict, List, Any, Optional
 from concurrent.futures import Future
 import zmq
 import msgpack
+
+from ..utils.node_info import NodeInfo
 
 from ..nodes.zmq_socket_manager import ZMQSocketManager
 from ..utils.log import _logger
@@ -17,13 +18,9 @@ class Subscriber:
         self,
         topic_name: str,
         callback: Callable[[Any], None],
-        nodes_info_manager: NodesInfoManager,
-        loop_manager: TaskLoopManager,
         buffer_size: int = 1000,
         conflate: bool = False,
     ):
-        self.nodes_info_manager = nodes_info_manager
-        self.loop_manager = loop_manager
         self._socket = ZMQSocketManager.get_instance().create_async_socket(zmq.SUB)
         self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
         if conflate:
@@ -35,9 +32,9 @@ class Subscriber:
         self.running: bool = True
         self.connected: bool = False
         self.published_urls: List[str] = []
-        self._listen_future: Optional[Future] = None
+        # self._listen_future: Optional[Future] = None
         self._receive_future: Optional[Future] = None
-        self._listen_future = self.loop_manager.submit_loop_task(self.listen_loop())
+        # self._listen_future = self.loop_manager.submit_loop_task(self.listen_loop())
 
     def connect(self, url: str) -> None:
         """Connect to a publisher's socket."""
@@ -45,26 +42,26 @@ class Subscriber:
         self.connected = True
         self.published_urls.append(url)
         _logger.info("Subscriber %s is connected to %s", self.name, url)
-        if len(self.published_urls) == 1:
-            self._receive_future = self.loop_manager.submit_loop_task(
+        if self._receive_future is None or self._receive_future.done():
+            self._receive_future = TaskLoopManager.get_instance().submit_loop_task(
                 self.receive_loop()
             )
 
-    async def listen_loop(self) -> None:
-        """Listens for new publishers and connects to them."""
-        _logger.info("Subscriber %s is listening ...", self.name)
-        while self.running:
-            try:
-                publishers = self.nodes_info_manager.get_publisher_info(self.name)
-                for pub_info in publishers:
-                    _url = f"tcp://{pub_info['ip']}:{pub_info['port']}"
-                    if _url not in self.published_urls:
-                        self.connect(_url)
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                _logger.error("Error from topic %s listener: %s", self.name, e)
-                traceback.print_exc()
-                raise e
+    # async def listen_loop(self) -> None:
+    #     """Listens for new publishers and connects to them."""
+    #     _logger.info("Subscriber %s is listening ...", self.name)
+    #     while self.running:
+    #         try:
+    #             publishers = self.nodes_info_manager.get_publisher_info(self.name)
+    #             for pub_info in publishers:
+    #                 _url = f"tcp://{pub_info['ip']}:{pub_info['port']}"
+    #                 if _url not in self.published_urls:
+    #                     self.connect(_url)
+    #             await asyncio.sleep(0.5)
+    #         except Exception as e:
+    #             _logger.error("Error from topic %s listener: %s", self.name, e)
+    #             traceback.print_exc()
+    #             raise e
 
     async def receive_loop(self) -> None:
         """Listens for incoming messages on the subscribed topic."""
@@ -90,8 +87,6 @@ class Subscriber:
     def close(self) -> None:
         """Close the subscriber socket."""
         self.running = False
-        if self._listen_future is not None:
-            self._listen_future.cancel()
         if self._receive_future is not None:
             self._receive_future.cancel()
         self._socket.close()
@@ -102,16 +97,33 @@ class SubscriberManager:
     """Manages multiple subscribers."""
 
     def __init__(self, loop_manager: TaskLoopManager, nodes_info_manager: NodesInfoManager) -> None:
-        self.subscribers: List[Subscriber] = []
+        # self.subscribers: List[Subscriber] = []
+        self.subscriber_dict: Dict[str, Subscriber] = {}
         self.loop_manager = loop_manager
         self.nodes_info_manager = nodes_info_manager
+        self.nodes_info_manager.register_node_update_handler("*", self.check_new_node)
 
-    def add_subscriber(self, topic_name: str, callback: Callable[[Any], None], buffer_size: int = 1000, conflate: bool = False) -> None:
+    def add_subscriber(
+        self,
+        topic_name: str,
+        callback: Callable[[Any], None],
+        buffer_size: int = 1000,
+        conflate: bool = False
+    ) -> None:
         """Add a new subscriber and start its listening and receiving loops."""
-        subscriber = Subscriber(topic_name, callback, self.nodes_info_manager, self.loop_manager, buffer_size, conflate)
-        self.subscribers.append(subscriber)
+        subscriber = Subscriber(topic_name, callback, buffer_size, conflate)
+        # self.subscribers.append(subscriber)
+        self.subscriber_dict[topic_name] = subscriber
 
     def on_shutdown(self) -> None:
         """Shutdown all subscriber sockets."""
-        for subscriber in self.subscribers:
+        for subscriber in self.subscriber_dict.values():
             subscriber.close()
+
+    def check_new_node(self, node_info: NodeInfo) -> None:
+        """Check if a new node has published the subscribed topic and connect to it."""
+        for topic in node_info["topics"]:
+            if topic["name"] in self.subscriber_dict:
+                _url = f"tcp://{node_info['ip']}:{topic['port']}"
+                if _url not in self.subscriber_dict[topic["name"]].published_urls:
+                    self.subscriber_dict[topic["name"]].connect(_url)

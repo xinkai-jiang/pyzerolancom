@@ -23,6 +23,9 @@ if __name__ == "__main__":
     pyzlc.init("CustomMessageNode", "127.0.0.1", log_level=pyzlc.LogLevel.DEBUG)
     pyzlc.register_subscriber_handler("CustomMessage", message_callback)
     pub = pyzlc.Publisher("CustomMessage")
-    for _ in range(10):
-        pub.publish(CustomMessage(count=42, name="example", data=[1.0, 2.0, 3.0]))
+    count = 0
+    while True:
+        pub.publish(CustomMessage(count=count, name="example", data=[1.0, 2.0, 3.0]))
+        pyzlc.info(f"Published custom message with count: {count}")
+        count += 1
         pyzlc.sleep(0.5)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Optional, Callable, cast
 import time
 
 from ..utils.node_info import (
@@ -14,6 +14,7 @@ from .loop_manager import TaskLoopManager
 from ..utils.msg import create_hash_identifier, HeartbeatMessage
 from ..utils.log import _logger
 from ..utils.msg import send_request
+from ..utils.event import Event
 
 
 class NodesInfoManager:
@@ -46,6 +47,13 @@ class NodesInfoManager:
                 "services": [],
             }
         )
+        self._node_update_event_dict: Dict[str, Event[NodeInfo]] = {}
+        self._node_update_event_dict["*"] = Event[NodeInfo]()
+
+    def register_node_update_handler(self, node_name: str, handler: Callable[[NodeInfo], None]) -> None:
+        if node_name not in self._node_update_event_dict:
+            self._node_update_event_dict[node_name] = Event[NodeInfo]()
+        self._node_update_event_dict[node_name].subscribe(handler)
 
     def check_local_service(self, service_name: str) -> bool:
         """Check if a service is registered locally."""
@@ -80,6 +88,7 @@ class NodesInfoManager:
             {"name": topic_name, "ip": self.local_node_info.get("ip"), "port": port}
         )
         self.local_node_info["infoID"] += 1
+        self._node_update_event_dict["*"](self.local_node_info)
 
     def check_node_by_name(self, node_name: str) -> Optional[NodeInfo]:
         """Check if a node with the given name exists."""
@@ -114,6 +123,9 @@ class NodesInfoManager:
         for topic in node_info["topics"]:
             topic["ip"] = node_info["ip"]
         self.nodes_heartbeat[node_id] = time.monotonic()
+        self._node_update_event_dict["*"](node_info)
+        if node_info["name"] in self._node_update_event_dict:
+            self._node_update_event_dict[node_info["name"]](node_info)
 
     def remove_node(self, node_id: HashIdentifier) -> None:
         """Remove a node's information."""
