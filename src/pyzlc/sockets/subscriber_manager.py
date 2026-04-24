@@ -31,16 +31,18 @@ class Subscriber:
         self.callback = callback
         self.running: bool = True
         self.connected: bool = False
-        self.published_urls: List[str] = []
+        self.sub_urls: List[str] = []
         # self._listen_future: Optional[Future] = None
         self._receive_future: Optional[Future] = None
         # self._listen_future = self.loop_manager.submit_loop_task(self.listen_loop())
 
     def connect(self, url: str) -> None:
         """Connect to a publisher's socket."""
+        if url in self.sub_urls:
+            return
         self._socket.connect(url)
         self.connected = True
-        self.published_urls.append(url)
+        self.sub_urls.append(url)
         _logger.info("Subscriber %s is connected to %s", self.name, url)
         if self._receive_future is None or self._receive_future.done():
             self._receive_future = TaskLoopManager.get_instance().submit_loop_task(
@@ -55,7 +57,7 @@ class Subscriber:
     #             publishers = self.nodes_info_manager.get_publisher_info(self.name)
     #             for pub_info in publishers:
     #                 _url = f"tcp://{pub_info['ip']}:{pub_info['port']}"
-    #                 if _url not in self.published_urls:
+    #                 if _url not in self.sub_urls:
     #                     self.connect(_url)
     #             await asyncio.sleep(0.5)
     #         except Exception as e:
@@ -112,11 +114,15 @@ class SubscriberManager:
     ) -> None:
         """Add a new subscriber and start its listening and receiving loops."""
         subscriber = Subscriber(topic_name, callback, buffer_size, conflate)
-        # self.subscribers.append(subscriber)
+        pub_infos = self.nodes_info_manager.get_publisher_info(topic_name)
+        for info in pub_infos:
+            _url = f"tcp://{info['ip']}:{info['port']}"
+            subscriber.connect(_url)
         self.subscriber_dict[topic_name] = subscriber
 
-    def on_shutdown(self) -> None:
+    def stop(self) -> None:
         """Shutdown all subscriber sockets."""
+        self.nodes_info_manager.unregister_node_update_handler("*", self.check_new_node)
         for subscriber in self.subscriber_dict.values():
             subscriber.close()
 
@@ -125,5 +131,5 @@ class SubscriberManager:
         for topic in node_info["topics"]:
             if topic["name"] in self.subscriber_dict:
                 _url = f"tcp://{node_info['ip']}:{topic['port']}"
-                if _url not in self.subscriber_dict[topic["name"]].published_urls:
+                if _url not in self.subscriber_dict[topic["name"]].sub_urls:
                     self.subscriber_dict[topic["name"]].connect(_url)

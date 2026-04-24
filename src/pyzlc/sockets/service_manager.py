@@ -53,7 +53,7 @@ class ServiceManager:
         _logger.debug(f"Service '{service_name}' registered successfully.")
 
     async def _handle_request(
-        self, service_name: str, request: bytes, services: dict[str, ServiceCallback]
+        self, service_name: str, request: bytes, services: Dict[str, ServiceCallback]
     ) -> Tuple[bytes, bytes]:
         """Handle a single service request and return (status, result)."""
         if service_name not in services:
@@ -84,7 +84,7 @@ class ServiceManager:
     async def service_loop(
         self,
         _socket: AsyncSocket,
-        services: dict[str, ServiceCallback],
+        services: Dict[str, ServiceCallback],
     ) -> None:
         """Asynchronously handles incoming service requests."""
         while self._running:

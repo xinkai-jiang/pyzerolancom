@@ -122,7 +122,7 @@ def spin(group_name: Optional[str] = None) -> None:
         LanComNode.get_instance(group_name).loop_manager.spin()
     except KeyboardInterrupt:
         _logger.debug("LanCom node interrupted by user")
-        LanComNode.get_instance(group_name).stop_node()
+        LanComNode.stop_all_nodes()
 
 
 def register_service_handler(
@@ -208,7 +208,7 @@ def submit_thread_pool_task(
     func: Callable[..., TaskReturnT], *args: Any
 ) -> concurrent.futures.Future:
     """Submit a synchronous function to the thread pool executor."""
-    return DaemonThreadPoolExecutor.submit_thread_pool_task(func, *args)
+    return TaskLoopManager.get_instance().submit_thread_pool_task(func, *args)
 
 
 info = _logger.info

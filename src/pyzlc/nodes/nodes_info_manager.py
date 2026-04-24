@@ -55,6 +55,11 @@ class NodesInfoManager:
             self._node_update_event_dict[node_name] = Event[NodeInfo]()
         self._node_update_event_dict[node_name].subscribe(handler)
 
+    def unregister_node_update_handler(self, node_name: str, handler: Callable[[NodeInfo], None]) -> None:
+        if node_name in self._node_update_event_dict:
+            self._node_update_event_dict[node_name].unsubscribe(handler)
+
+
     def check_local_service(self, service_name: str) -> bool:
         """Check if a service is registered locally."""
         for service in self.local_node_info.get("services", []):
@@ -168,8 +173,6 @@ class NodesInfoManager:
             node_ip: IP address of the remote node
         """
         self.nodes_heartbeat[heartbeat_message.node_id] = time.monotonic()
-        if heartbeat_message.node_id in self.unreplyed_heartbeats:
-            return
         if self.check_info(heartbeat_message.node_id, heartbeat_message.info_id):
             return
         _logger.debug(f"Fetching node info from {node_ip}:{heartbeat_message.service_port}")
@@ -181,6 +184,8 @@ class NodesInfoManager:
                 timeout=0.3,
             )
         except Exception as e:
+            if heartbeat_message.node_id in self.unreplyed_heartbeats:
+                return
             _logger.error(f"Failed to fetch node info from {node_ip}:{heartbeat_message.service_port} - {e}")
             self.unreplyed_heartbeats.add(heartbeat_message.node_id)
             return
@@ -188,6 +193,8 @@ class NodesInfoManager:
             node_info = cast(NodeInfo, result)
             node_info["ip"] = node_ip
             self.update_node(node_info)
+            if heartbeat_message.node_id in self.unreplyed_heartbeats:
+                self.unreplyed_heartbeats.remove(heartbeat_message.node_id)
             _logger.debug(f"Updated node info for {node_info['name']} ({node_ip})")
 
     async def check_heartbeat(self, interval: float = 1.0) -> None:

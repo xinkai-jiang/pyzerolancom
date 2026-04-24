@@ -42,6 +42,8 @@ class LanComNode:
             node.stop_node()
             _logger.debug(f"Sub-node for group '{group_name}' has been stopped.")
         cls.node_instances.clear()
+        cls.default_instance = None
+        TaskLoopManager.get_instance().stop()
 
     @classmethod
     def init(
@@ -121,7 +123,10 @@ class LanComNode:
         _logger.debug("Stopping LanCom node...")
         self.running = False
         self.service_manager.stop()
+        self.subscriber_manager.stop()
         self.multicast_worker.stop()
         self.heartbeat_future.cancel()
-        self.loop_manager.stop()
+        LanComNode.node_instances.pop(self.group_name)
+        if LanComNode.default_instance and LanComNode.default_instance == self:
+            LanComNode.default_instance = None
         _logger.debug("LanCom node has been stopped")

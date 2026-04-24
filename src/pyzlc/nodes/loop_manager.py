@@ -109,18 +109,14 @@ class TaskLoopManager:
     instance: Optional[TaskLoopManager] = None
     _instance_lock = threading.Lock()
 
-    def __new__(cls, *args, **kwargs) -> TaskLoopManager:
-        """Create or return the singleton loop manager instance."""
-        if cls.instance is None:
-            with cls._instance_lock:
-                if cls.instance is None:
-                    cls.instance = super().__new__(cls)
-        return cls.instance
-
     @classmethod
     def get_instance(cls) -> TaskLoopManager:
         """Get the singleton instance of TaskLoopManager."""
-        return cls()
+        if cls.instance is None:
+            with cls._instance_lock:
+                if cls.instance is None:
+                    cls.instance = TaskLoopManager()
+        return cls.instance
 
     def __init__(self, max_workers: int = 3):
         """Initialize the TaskLoopManager with a thread pool executor.
