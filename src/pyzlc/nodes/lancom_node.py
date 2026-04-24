@@ -38,12 +38,13 @@ class LanComNode:
     @classmethod
     def stop_all_nodes(cls):
         """Stop all LanCom nodes, including sub-group nodes."""
-        for group_name, node in cls.node_instances.items():
+        for group_name, node in list(cls.node_instances.items()):
             node.stop_node()
             _logger.debug(f"Sub-node for group '{group_name}' has been stopped.")
         cls.node_instances.clear()
         cls.default_instance = None
-        TaskLoopManager.get_instance().stop()
+        if TaskLoopManager.instance is not None:
+            TaskLoopManager.instance.stop()
 
     @classmethod
     def init(
@@ -126,7 +127,7 @@ class LanComNode:
         self.subscriber_manager.stop()
         self.multicast_worker.stop()
         self.heartbeat_future.cancel()
-        LanComNode.node_instances.pop(self.group_name)
-        if LanComNode.default_instance and LanComNode.default_instance == self:
+        LanComNode.node_instances.pop(self.group_name, None)
+        if LanComNode.default_instance is self:
             LanComNode.default_instance = None
         _logger.debug("LanCom node has been stopped")
