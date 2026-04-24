@@ -7,7 +7,7 @@ import msgpack
 
 from ..nodes.zmq_socket_manager import ZMQSocketManager
 from ..utils.log import _logger
-from ..nodes.loop_manager import LanComLoopManager
+from ..nodes.loop_manager import TaskLoopManager
 from ..nodes.nodes_info_manager import NodesInfoManager
 
 class Subscriber:
@@ -18,13 +18,18 @@ class Subscriber:
         topic_name: str,
         callback: Callable[[Any], None],
         nodes_info_manager: NodesInfoManager,
-        loop_manager: LanComLoopManager,
-        group_name: Optional[str] = None,
+        loop_manager: TaskLoopManager,
+        buffer_size: int = 1000,
+        conflate: bool = False,
     ):
         self.nodes_info_manager = nodes_info_manager
         self.loop_manager = loop_manager
         self._socket = ZMQSocketManager.get_instance().create_async_socket(zmq.SUB)
         self._socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        if conflate:
+            self._socket.setsockopt(zmq.CONFLATE, 1)
+        else:
+            self._socket.setsockopt(zmq.SNDHWM, buffer_size)
         self.name = topic_name
         self.callback = callback
         self.running: bool = True
@@ -96,14 +101,14 @@ class Subscriber:
 class SubscriberManager:
     """Manages multiple subscribers."""
 
-    def __init__(self, loop_manager: LanComLoopManager, nodes_info_manager: NodesInfoManager) -> None:
+    def __init__(self, loop_manager: TaskLoopManager, nodes_info_manager: NodesInfoManager) -> None:
         self.subscribers: List[Subscriber] = []
         self.loop_manager = loop_manager
         self.nodes_info_manager = nodes_info_manager
 
-    def add_subscriber(self, topic_name: str, callback: Callable[[Any], None]) -> None:
+    def add_subscriber(self, topic_name: str, callback: Callable[[Any], None], buffer_size: int = 1000, conflate: bool = False) -> None:
         """Add a new subscriber and start its listening and receiving loops."""
-        subscriber = Subscriber(topic_name, callback, self.nodes_info_manager, self.loop_manager)
+        subscriber = Subscriber(topic_name, callback, self.nodes_info_manager, self.loop_manager, buffer_size, conflate)
         self.subscribers.append(subscriber)
 
     def on_shutdown(self) -> None:

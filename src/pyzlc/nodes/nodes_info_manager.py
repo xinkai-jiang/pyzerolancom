@@ -10,7 +10,7 @@ from ..utils.node_info import (
     TopicName,
     HashIdentifier,
 )
-from .loop_manager import LanComLoopManager
+from .loop_manager import TaskLoopManager
 from ..utils.msg import create_hash_identifier, HeartbeatMessage
 from ..utils.log import _logger
 from ..utils.msg import send_request
@@ -28,7 +28,7 @@ class NodesInfoManager:
     #         raise ValueError("NodesInfoManager is not initialized yet.")
     #     return cls._instance
 
-    def __init__(self, local_name: str, local_ip: str, loop_manager: LanComLoopManager) -> None:
+    def __init__(self, local_name: str, local_ip: str, loop_manager: TaskLoopManager) -> None:
         # NodesInfoManager._instance = self
         self.loop_manager = loop_manager
         self.running = True

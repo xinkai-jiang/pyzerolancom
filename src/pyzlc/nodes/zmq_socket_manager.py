@@ -17,7 +17,7 @@ class ZMQSocketManager:
     def get_instance(cls) -> ZMQSocketManager:
         """Get the singleton instance of ZMQSocketManager."""
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = ZMQSocketManager()
         return cls._instance
 
     def __init__(self) -> None:

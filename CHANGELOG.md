@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - Group-based instance management for `LanComNode` and related components
 
 ### Changed
-- Refactor `LanComNode`, `LanComLoopManager`, `NodesInfoManager`, and socket components for group-based instance management
+- Refactor `LanComNode`, `TaskLoopManager`, `NodesInfoManager`, and socket components for group-based instance management
 - Enhance thread pool executor capabilities
 - Enhance logging functionality and update log level handling
 
@@ -32,7 +32,7 @@ All notable changes to this project will be documented in this file.
 ## [2.0.2] - 2026-01-29
 
 ### Added
-- Add `submit_thread_pool_task` method to LanComLoopManager for submitting synchronous functions to the thread pool executor
+- Add `submit_thread_pool_task` method to TaskLoopManager for submitting synchronous functions to the thread pool executor
 
 ### Fixed
 - Fix bug in `handle_heartbeat` function
@@ -83,7 +83,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.1]
 
 ### Fixed
-- Fix LanComLoopManager starts for twice and reuse the multicast port issue
+- Fix TaskLoopManager starts for twice and reuse the multicast port issue
 - Clean publisher and fix service manager
 
 ### Changed

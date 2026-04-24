@@ -16,13 +16,14 @@ from ..utils.msg import MessageT, get_socket_addr
 class Publisher:
     """Publishes messages to a topic."""
 
-    def __init__(self, topic_name: str, group_name: Optional[str] = None):
+    def __init__(self, topic_name: str, group_name: Optional[str] = None, buffer_size: int = 1000):
         self.name = topic_name
         node = LanComNode.get_instance(group_name)
         self.loop_manager = node.loop_manager
         nodes_info_manager = node.nodes_info_manager
         local_node_info = nodes_info_manager.local_node_info
         self._socket = ZMQSocketManager.get_instance().create_socket(zmq.PUB)
+        self._socket.setsockopt(zmq.SNDHWM, buffer_size)
         self._socket.bind(f"tcp://{local_node_info['ip']}:0")
         self.url, self.port = get_socket_addr(self._socket)
         nodes_info_manager.register_local_publisher(self.name, self.port)
@@ -47,8 +48,9 @@ class Streamer(Publisher):
         fps: int,
         start_streaming: bool = False,
         group_name: Optional[str] = None,
+        buffer_size: int = 1000,
     ):
-        super().__init__(topic_name, group_name)
+        super().__init__(topic_name, group_name, buffer_size)
         self.running = False
         self.dt: float = 1 / fps
         self.update_func = update_func

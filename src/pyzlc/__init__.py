@@ -15,7 +15,7 @@ import concurrent.futures
 
 from .nodes.lancom_node import LanComNode
 from .nodes.nodes_info_manager import NodeInfo
-from .nodes.loop_manager import LanComLoopManager, DaemonThreadPoolExecutor, TaskReturnT
+from .nodes.loop_manager import TaskLoopManager, DaemonThreadPoolExecutor, TaskReturnT
 from .sockets.service_client import call, async_call
 from .sockets.publisher import Publisher, Streamer
 from .utils.msg import Empty, empty, _get_zlc_version
@@ -142,10 +142,12 @@ def register_subscriber_handler(
     topic_name: str,
     callback: Callable,
     group_name: Optional[str] = None,
+    buffer_size: int = 1000,
+    conflate: bool = False,
 ) -> None:
     """Create a subscriber for the specified topic."""
     subscriber_manager = LanComNode.get_instance(group_name).subscriber_manager
-    subscriber_manager.add_subscriber(topic_name, callback)
+    subscriber_manager.add_subscriber(topic_name, callback, buffer_size, conflate)
 
 
 def wait_for_service(
@@ -198,7 +200,7 @@ def submit_loop_task(
     group_name: Optional[str] = None
 ) -> concurrent.futures.Future:
     """Submit a coroutine to the event loop."""
-    assert LanComLoopManager is not None, "LanComNode is not initialized."
+    assert TaskLoopManager is not None, "LanComNode is not initialized."
     return LanComNode.get_instance(group_name).loop_manager.submit_loop_task(task)
 
 

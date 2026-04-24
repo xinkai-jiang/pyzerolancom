@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict
 
-from .loop_manager import LanComLoopManager
+from .loop_manager import TaskLoopManager
 from .multicast import MulticastWorker
 from .nodes_info_manager import NodesInfoManager
 from .zmq_socket_manager import ZMQSocketManager
@@ -83,8 +83,8 @@ class LanComNode:
         self.group = group
         self.group_port = group_port
         self.group_name = group_name
-        self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager()
-        self.loop_manager: LanComLoopManager = LanComLoopManager.get_instance()
+        self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager.get_instance()
+        self.loop_manager: TaskLoopManager = TaskLoopManager.get_instance()
         self.nodes_info_manager: NodesInfoManager = NodesInfoManager(
             node_name, node_ip, self.loop_manager
         )

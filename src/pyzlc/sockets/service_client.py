@@ -3,7 +3,6 @@
 from typing import Optional, Any
 
 from ..nodes.lancom_node import LanComNode
-from ..nodes.loop_manager import LanComLoopManager
 from ..utils.log import _logger
 from ..utils.msg import ResponseT, RequestT
 from ..utils.msg import send_request

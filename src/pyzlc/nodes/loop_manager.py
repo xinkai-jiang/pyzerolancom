@@ -103,13 +103,13 @@ class DaemonThreadPoolExecutor:
             self._work_queue.join()
 
 
-class LanComLoopManager:
+class TaskLoopManager:
     """Manages the event loop and thread pool for asynchronous tasks."""
 
-    instance: Optional[LanComLoopManager] = None
+    instance: Optional[TaskLoopManager] = None
     _instance_lock = threading.Lock()
 
-    def __new__(cls, *args, **kwargs) -> LanComLoopManager:
+    def __new__(cls, *args, **kwargs) -> TaskLoopManager:
         """Create or return the singleton loop manager instance."""
         if cls.instance is None:
             with cls._instance_lock:
@@ -118,12 +118,12 @@ class LanComLoopManager:
         return cls.instance
 
     @classmethod
-    def get_instance(cls) -> LanComLoopManager:
-        """Get the singleton instance of LanComLoopManager."""
+    def get_instance(cls) -> TaskLoopManager:
+        """Get the singleton instance of TaskLoopManager."""
         return cls()
 
     def __init__(self, max_workers: int = 3):
-        """Initialize the LanComLoopManager with a thread pool executor.
+        """Initialize the TaskLoopManager with a thread pool executor.
 
         Args:
             max_workers (int, optional): The maximum number of worker threads. Defaults to 3.
@@ -195,10 +195,10 @@ class LanComLoopManager:
             self._stopped_event.wait()
             assert self._executor is not None
             self._executor.shutdown(wait=True)
-            with LanComLoopManager._instance_lock:
-                LanComLoopManager.instance = None
+            with TaskLoopManager._instance_lock:
+                TaskLoopManager.instance = None
             _logger.debug("Thread pool executor has been shut down")
-            _logger.debug("LanComLoopManager has been stopped")
+            _logger.debug("TaskLoopManager has been stopped")
 
     async def run_in_executor(
         self, func: Callable[..., TaskReturnT], *args: Any

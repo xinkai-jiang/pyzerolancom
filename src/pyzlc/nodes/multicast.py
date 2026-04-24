@@ -15,7 +15,7 @@ from ..utils.msg import (
     decode_heartbeat_message,
 )
 from ..utils.node_info import NodeInfo
-from .loop_manager import LanComLoopManager
+from .loop_manager import TaskLoopManager
 
 
 class MulticastWorker:
@@ -27,7 +27,7 @@ class MulticastWorker:
         group: str,
         group_port: int,
         group_name: str,
-        loop_manager: LanComLoopManager,
+        loop_manager: TaskLoopManager,
         nodes_info_manager: NodesInfoManager,
     ) -> None:
         self.local_info = local_info
@@ -42,7 +42,7 @@ class MulticastWorker:
         self._stop_event = threading.Event()
         self._sender_thread: Optional[threading.Thread] = None
         self._receiver_thread: Optional[threading.Thread] = None
-        self.loop_manager: LanComLoopManager = loop_manager
+        self.loop_manager: TaskLoopManager = loop_manager
         self.node_info_manager: NodesInfoManager = nodes_info_manager
 
     def start(self):
