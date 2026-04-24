@@ -160,5 +160,38 @@ msgpack
 
 colorama
 
+## 🧪 Testing
+
+Install the local test dependencies:
+
+```bash
+pip install -e ".[test]"
+```
+
+Run the default unit suite:
+
+```bash
+python -m pytest
+```
+
+Run optional integration tests that may use localhost sockets:
+
+```bash
+python -m pytest -m "integration"
+```
+
+Run optional benchmarks:
+
+```bash
+pip install -e ".[test,benchmark]"
+python -m pytest -m "benchmark" --benchmark-only
+```
+
+Report coverage without enforcing a threshold:
+
+```bash
+python -m pytest --cov=pyzlc --cov-report=term-missing
+```
+
 ## License
 This project is licensed under the Apache License 2.0 - see the LICENSE file for details.

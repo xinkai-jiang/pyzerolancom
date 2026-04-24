@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Add a pytest-based local test framework with unit, integration, network, and benchmark markers
+- Add optional `test` and `benchmark` dependency extras
+- Add unit tests for message helpers, events, node info encoding, loop executor, node lifecycle, service handling, and subscriber management
+- Add an opt-in integration/network test placeholder
+- Add README instructions for running unit tests, integration tests, benchmarks, and coverage reports
+
+### Changed
+- Align the declared Python support policy with Python 3.8+
+- Exclude integration and benchmark tests from the default pytest run
+
+### Removed
+- Remove obsolete commented-out test scaffolding
+
 ## [2.2.0] - 2026-03-15
 
 ### Added
