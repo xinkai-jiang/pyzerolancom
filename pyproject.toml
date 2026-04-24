@@ -1,25 +1,48 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyzlc"
-version = "2.2.0"
+version = "2.2.1"
 description="A lightweight ZeroMQ-based framework for high-performance, cross-environment communication across Local Area Networks."
 dependencies = [
     "msgpack",
     "pyzmq",
     "colorama",
+    "typing-extensions",
 ]
 authors = [
   { name = "Xinkai Jiang", email = "jiangxinkai98@gmail.com" },
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
 readme = "README.md"
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+benchmark = [
+    "pytest-benchmark",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["pyzlc*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m 'not integration and not benchmark'"
+markers = [
+    "unit: fast deterministic tests that do not require real network access",
+    "integration: opt-in tests that may use real sockets or longer-running workflows",
+    "network: opt-in tests that require network or multicast permissions",
+    "benchmark: opt-in performance benchmarks that require pytest-benchmark",
+]
+
+[tool.coverage.run]
+source = ["pyzlc"]

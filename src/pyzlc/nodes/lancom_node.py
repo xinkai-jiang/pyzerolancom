@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Dict
 
-from .loop_manager import LanComLoopManager
+from .loop_manager import TaskLoopManager
 from .multicast import MulticastWorker
 from .nodes_info_manager import NodesInfoManager
 from .zmq_socket_manager import ZMQSocketManager
@@ -38,10 +38,13 @@ class LanComNode:
     @classmethod
     def stop_all_nodes(cls):
         """Stop all LanCom nodes, including sub-group nodes."""
-        for group_name, node in cls.node_instances.items():
+        for group_name, node in list(cls.node_instances.items()):
             node.stop_node()
             _logger.debug(f"Sub-node for group '{group_name}' has been stopped.")
         cls.node_instances.clear()
+        cls.default_instance = None
+        if TaskLoopManager.instance is not None:
+            TaskLoopManager.instance.stop()
 
     @classmethod
     def init(
@@ -51,7 +54,7 @@ class LanComNode:
         group: str,
         group_port: int,
         group_name: str,
-        sub_group: bool = False,
+        default_group: bool = True,
     ) -> None:
         if group_name in cls.node_instances:
             raise ValueError(
@@ -61,7 +64,7 @@ class LanComNode:
             cls.node_instances[group_name] = LanComNode(
                 node_name, node_ip, group, group_port, group_name
             )
-        if not sub_group:
+        if default_group:
             if cls.default_instance is None:
                 cls.default_instance = cls.node_instances[group_name]
             else:
@@ -83,8 +86,8 @@ class LanComNode:
         self.group = group
         self.group_port = group_port
         self.group_name = group_name
-        self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager()
-        self.loop_manager: LanComLoopManager = LanComLoopManager()
+        self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager.get_instance()
+        self.loop_manager: TaskLoopManager = TaskLoopManager.get_instance()
         self.nodes_info_manager: NodesInfoManager = NodesInfoManager(
             node_name, node_ip, self.loop_manager
         )
@@ -121,7 +124,10 @@ class LanComNode:
         _logger.debug("Stopping LanCom node...")
         self.running = False
         self.service_manager.stop()
+        self.subscriber_manager.stop()
         self.multicast_worker.stop()
         self.heartbeat_future.cancel()
-        self.loop_manager.stop()
+        LanComNode.node_instances.pop(self.group_name, None)
+        if LanComNode.default_instance is self:
+            LanComNode.default_instance = None
         _logger.debug("LanCom node has been stopped")

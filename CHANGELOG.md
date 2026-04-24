@@ -2,13 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Add a pytest-based local test framework with unit, integration, network, and benchmark markers
+- Add optional `test` and `benchmark` dependency extras
+- Add unit tests for message helpers, events, node info encoding, loop executor, node lifecycle, service handling, and subscriber management
+- Add an opt-in integration/network test placeholder
+- Add README instructions for running unit tests, integration tests, benchmarks, and coverage reports
+
+### Changed
+- Align the declared Python support policy with Python 3.8+
+- Exclude integration and benchmark tests from the default pytest run
+
+### Removed
+- Remove obsolete commented-out test scaffolding
+
 ## [2.2.0] - 2026-03-15
 
 ### Added
 - Group-based instance management for `LanComNode` and related components
 
 ### Changed
-- Refactor `LanComNode`, `LanComLoopManager`, `NodesInfoManager`, and socket components for group-based instance management
+- Refactor `LanComNode`, `TaskLoopManager`, `NodesInfoManager`, and socket components for group-based instance management
 - Enhance thread pool executor capabilities
 - Enhance logging functionality and update log level handling
 
@@ -32,7 +48,7 @@ All notable changes to this project will be documented in this file.
 ## [2.0.2] - 2026-01-29
 
 ### Added
-- Add `submit_thread_pool_task` method to LanComLoopManager for submitting synchronous functions to the thread pool executor
+- Add `submit_thread_pool_task` method to TaskLoopManager for submitting synchronous functions to the thread pool executor
 
 ### Fixed
 - Fix bug in `handle_heartbeat` function
@@ -83,7 +99,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.1]
 
 ### Fixed
-- Fix LanComLoopManager starts for twice and reuse the multicast port issue
+- Fix TaskLoopManager starts for twice and reuse the multicast port issue
 - Clean publisher and fix service manager
 
 ### Changed

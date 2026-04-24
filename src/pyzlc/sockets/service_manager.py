@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional, Dict, Tuple
 import traceback
 import asyncio
 import zmq.asyncio
@@ -7,7 +7,7 @@ import msgpack
 
 from zmq.asyncio import Socket as AsyncSocket
 from ..utils.log import _logger
-from ..nodes.loop_manager import LanComLoopManager
+from ..nodes.loop_manager import TaskLoopManager
 from ..utils.msg import get_socket_addr, RequestT, ResponseT, ResponseStatus
 
 HandlerFunc = Callable[[RequestT], ResponseT]
@@ -17,7 +17,7 @@ ServiceCallback = Callable[[bytes], Optional[bytes]]
 class ServiceManager:
     """Manages services using a REP socket."""
 
-    def __init__(self, url: str, loop_manager: LanComLoopManager) -> None:
+    def __init__(self, url: str, loop_manager: TaskLoopManager) -> None:
         """Initialize the ServiceManager with a REP socket."""
         self.res_socket: AsyncSocket = zmq.asyncio.Context.instance().socket(zmq.REP)
         self.callable_services: Dict[str, ServiceCallback] = {}
@@ -50,11 +50,11 @@ class ServiceManager:
     def register_service(self, service_name: str, handler: HandlerFunc) -> None:
         """Register a service with a given name and handler function."""
         self.callable_services[service_name] = self._wrap_handler(handler)
-        _logger.info(f"Service '{service_name}' registered successfully.")
+        _logger.debug(f"Service '{service_name}' registered successfully.")
 
     async def _handle_request(
-        self, service_name: str, request: bytes, services: dict[str, ServiceCallback]
-    ) -> tuple[bytes, bytes]:
+        self, service_name: str, request: bytes, services: Dict[str, ServiceCallback]
+    ) -> Tuple[bytes, bytes]:
         """Handle a single service request and return (status, result)."""
         if service_name not in services:
             _logger.error(f"Service {service_name} is not available")
@@ -84,7 +84,7 @@ class ServiceManager:
     async def service_loop(
         self,
         _socket: AsyncSocket,
-        services: dict[str, ServiceCallback],
+        services: Dict[str, ServiceCallback],
     ) -> None:
         """Asynchronously handles incoming service requests."""
         while self._running:

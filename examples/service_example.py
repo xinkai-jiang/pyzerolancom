@@ -21,8 +21,10 @@ def register_service_handler_callback(service_name: str) -> Callable[[str], str]
 
 if __name__ == "__main__":
     pyzlc.init("ServiceNode", "127.0.0.1")
+    service_name = "echo_service"
     pyzlc.register_service_handler(
-        "echo_service", register_service_handler_callback("echo_service")
+        service_name, register_service_handler_callback(service_name)
     )
-    pyzlc.wait_for_service("echo_service")
-    pyzlc.call("echo_service", "Hello, world!")
+    pyzlc.wait_for_service(service_name)
+    msg = pyzlc.call(service_name, "Hello, world!")
+    pyzlc.info(f"Received '{msg}' from service {service_name}")
