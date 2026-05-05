@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.2.3] - 2026-05-05
+
+### Added
+- Support for structured IPC directory paths in publisher and subscriber bindings
+- Automatic IPC directory creation before socket binding
+- Safe topic name handling for IPC connections
 
 ## [2.2.2] - 2026-05-05
 
