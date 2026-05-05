@@ -114,8 +114,7 @@ class SubscriberManager:
         Otherwise, use TCP.
         """
         if info["ip"] == self.local_ip:
-            safe_topic = info["name"].replace("/", "_")
-            return f"ipc:///tmp/{safe_topic}"
+            return f"ipc:///tmp/zlc/{self.group_name}/{info['name']}/topic.sock"
         return f"tcp://{info['ip']}:{info['port']}"
 
     def add_subscriber(
