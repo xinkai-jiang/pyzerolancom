@@ -25,14 +25,15 @@ class Publisher:
         self._socket = ZMQSocketManager.get_instance().create_socket(zmq.PUB)
         self._socket.setsockopt(zmq.SNDHWM, buffer_size)
         self._socket.bind(f"tcp://{local_node_info['ip']}:0")
-        self._socket.bind(f"ipc://{group_name}/{topic_name}")
         self.url, self.port = get_socket_addr(self._socket)
+        safe_topic = topic_name.replace("/", "_")
+        self._socket.bind(f"ipc:///tmp/{safe_topic}")
         nodes_info_manager.register_local_publisher(self.name, self.port)
 
-    def publish(self, msg: MessageT) -> None:
+    def publish(self, msg: MessageT, copy: bool = True) -> None:
         """Publish a message in bytes."""
         msgpacked = msgpack.packb(msg)
-        self._socket.send(msgpacked)
+        self._socket.send(msgpacked, copy=copy)
 
     def on_shutdown(self) -> None:
         """Shutdown the publisher socket."""
