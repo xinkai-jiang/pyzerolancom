@@ -94,7 +94,7 @@ class LanComNode:
         self.service_manager = ServiceManager(
             f"tcp://{self.node_ip}:0", self.loop_manager
         )
-        self.subscriber_manager = SubscriberManager(self.loop_manager, self.nodes_info_manager)
+        self.subscriber_manager = SubscriberManager(self.loop_manager, self.nodes_info_manager, self.group_name)
         self.multicast_worker = MulticastWorker(
             local_info=self.nodes_info_manager.local_node_info,
             service_port=self.service_manager.port,

@@ -25,6 +25,7 @@ class Publisher:
         self._socket = ZMQSocketManager.get_instance().create_socket(zmq.PUB)
         self._socket.setsockopt(zmq.SNDHWM, buffer_size)
         self._socket.bind(f"tcp://{local_node_info['ip']}:0")
+        self._socket.bind(f"ipc://{group_name}/{topic_name}")
         self.url, self.port = get_socket_addr(self._socket)
         nodes_info_manager.register_local_publisher(self.name, self.port)
 

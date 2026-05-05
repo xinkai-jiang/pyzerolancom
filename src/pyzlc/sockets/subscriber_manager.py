@@ -4,7 +4,7 @@ from concurrent.futures import Future
 import zmq
 import msgpack
 
-from ..utils.node_info import NodeInfo
+from ..utils.node_info import NodeInfo, SocketInfo
 
 from ..nodes.zmq_socket_manager import ZMQSocketManager
 from ..utils.log import _logger
@@ -98,12 +98,24 @@ class Subscriber:
 class SubscriberManager:
     """Manages multiple subscribers."""
 
-    def __init__(self, loop_manager: TaskLoopManager, nodes_info_manager: NodesInfoManager) -> None:
+    def __init__(self, loop_manager: TaskLoopManager, nodes_info_manager: NodesInfoManager, group_name: str) -> None:
         # self.subscribers: List[Subscriber] = []
         self.subscriber_dict: Dict[str, Subscriber] = {}
         self.loop_manager = loop_manager
         self.nodes_info_manager = nodes_info_manager
+        self.group_name = group_name
+        self.local_ip = nodes_info_manager.local_node_info["ip"]
         self.nodes_info_manager.register_node_update_handler("*", self.check_new_node)
+
+    def _get_connect_url(self, info: SocketInfo) -> str:
+        """Determine the connection URL for a publisher info entry.
+
+        If the publisher is on the same host, use IPC for better performance.
+        Otherwise, use TCP.
+        """
+        if info["ip"] == self.local_ip:
+            return f"ipc://{self.group_name}/{info['name']}"
+        return f"tcp://{info['ip']}:{info['port']}"
 
     def add_subscriber(
         self,
@@ -116,7 +128,7 @@ class SubscriberManager:
         subscriber = Subscriber(topic_name, callback, buffer_size, conflate)
         pub_infos = self.nodes_info_manager.get_publisher_info(topic_name)
         for info in pub_infos:
-            _url = f"tcp://{info['ip']}:{info['port']}"
+            _url = self._get_connect_url(info)
             subscriber.connect(_url)
         self.subscriber_dict[topic_name] = subscriber
 
@@ -130,6 +142,6 @@ class SubscriberManager:
         """Check if a new node has published the subscribed topic and connect to it."""
         for topic in node_info["topics"]:
             if topic["name"] in self.subscriber_dict:
-                _url = f"tcp://{node_info['ip']}:{topic['port']}"
+                _url = self._get_connect_url(topic)
                 if _url not in self.subscriber_dict[topic["name"]].sub_urls:
                     self.subscriber_dict[topic["name"]].connect(_url)

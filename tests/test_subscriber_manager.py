@@ -55,12 +55,13 @@ def test_add_subscriber_connects_to_existing_publishers(monkeypatch):
             pass
 
     nodes_info_manager = Mock()
+    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
     nodes_info_manager.get_publisher_info.return_value = [
         {"name": "topic", "ip": "127.0.0.1", "port": 5555}
     ]
 
     monkeypatch.setattr(subscriber_manager, "Subscriber", FakeSubscriber)
-    manager = SubscriberManager(Mock(), nodes_info_manager)
+    manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
 
     manager.add_subscriber("topic", lambda msg: None)
 
@@ -74,7 +75,8 @@ def test_check_new_node_connects_matching_subscriber_once():
     sub.sub_urls = []
 
     nodes_info_manager = Mock()
-    manager = SubscriberManager(Mock(), nodes_info_manager)
+    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
+    manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
     manager.subscriber_dict["topic"] = sub
     node_info = {
         "name": "node",
@@ -95,7 +97,8 @@ def test_check_new_node_connects_matching_subscriber_once():
 @pytest.mark.unit
 def test_stop_unregisters_handler_and_closes_subscribers():
     nodes_info_manager = Mock()
-    manager = SubscriberManager(Mock(), nodes_info_manager)
+    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
+    manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
     subscriber = Mock()
     manager.subscriber_dict["topic"] = subscriber
 

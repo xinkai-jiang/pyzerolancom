@@ -4,19 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-05-05
+
 ### Added
-- Add a pytest-based local test framework with unit, integration, network, and benchmark markers
-- Add optional `test` and `benchmark` dependency extras
-- Add unit tests for message helpers, events, node info encoding, loop executor, node lifecycle, service handling, and subscriber management
-- Add an opt-in integration/network test placeholder
-- Add README instructions for running unit tests, integration tests, benchmarks, and coverage reports
-
-### Changed
-- Align the declared Python support policy with Python 3.8+
-- Exclude integration and benchmark tests from the default pytest run
-
-### Removed
-- Remove obsolete commented-out test scaffolding
+- Bind publisher to both TCP and IPC addresses for same-host communication
+- Subscriber automatically prefers IPC when publisher is on the same host for better performance
+- IPC address format: `ipc://{group_name}/{topic_name}`
 
 ## [2.2.0] - 2026-03-15
 
