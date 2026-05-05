@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 import traceback
 from asyncio import sleep as async_sleep
@@ -26,8 +27,10 @@ class Publisher:
         self._socket.setsockopt(zmq.SNDHWM, buffer_size)
         self._socket.bind(f"tcp://{local_node_info['ip']}:0")
         self.url, self.port = get_socket_addr(self._socket)
-        safe_topic = topic_name.replace("/", "_")
-        self._socket.bind(f"ipc:///tmp/{safe_topic}")
+        ipc_addr = f"/tmp/zlc/{node.group_name}_{topic_name}"
+        if not os.path.exists(ipc_addr):
+            os.makedirs(ipc_addr)
+        self._socket.bind(f"ipc://{ipc_addr}")
         nodes_info_manager.register_local_publisher(self.name, self.port)
 
     def publish(self, msg: MessageT, copy: bool = True) -> None:
