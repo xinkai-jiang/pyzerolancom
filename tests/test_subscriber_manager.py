@@ -6,8 +6,15 @@ from pyzlc.sockets import subscriber_manager
 from pyzlc.sockets.subscriber_manager import SubscriberManager
 
 
-@pytest.mark.unit
-def test_subscriber_connect_skips_duplicate_urls(monkeypatch):
+@pytest.fixture
+def nodes_info_manager():
+    manager = Mock()
+    manager.local_node_info = {"ip": "192.168.1.100"}
+    return manager
+
+
+@pytest.fixture
+def patched_subscriber_socket(monkeypatch):
     socket = Mock()
     socket.connect = Mock()
 
@@ -30,16 +37,11 @@ def test_subscriber_connect_skips_duplicate_urls(monkeypatch):
         "get_instance",
         lambda: FakeLoopManager(),
     )
-
-    sub = subscriber_manager.Subscriber("topic", lambda msg: None)
-    sub.connect("tcp://127.0.0.1:1234")
-    sub.connect("tcp://127.0.0.1:1234")
-
-    socket.connect.assert_called_once_with("tcp://127.0.0.1:1234")
+    return socket
 
 
-@pytest.mark.unit
-def test_add_subscriber_connects_to_existing_publishers(monkeypatch):
+@pytest.fixture
+def patched_subscriber_class(monkeypatch):
     connected = []
 
     class FakeSubscriber:
@@ -54,28 +56,41 @@ def test_add_subscriber_connects_to_existing_publishers(monkeypatch):
         def close(self):
             pass
 
-    nodes_info_manager = Mock()
-    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
+    monkeypatch.setattr(subscriber_manager, "Subscriber", FakeSubscriber)
+    return connected
+
+
+@pytest.mark.unit
+def test_subscriber_connect_skips_duplicate_urls(patched_subscriber_socket):
+    sub = subscriber_manager.Subscriber("topic", lambda msg: None)
+    sub.connect("tcp://127.0.0.1:1234")
+    sub.connect("tcp://127.0.0.1:1234")
+
+    patched_subscriber_socket.connect.assert_called_once_with("tcp://127.0.0.1:1234")
+
+
+@pytest.mark.unit
+def test_add_subscriber_connects_to_existing_publishers(
+    nodes_info_manager,
+    patched_subscriber_class,
+):
     nodes_info_manager.get_publisher_info.return_value = [
         {"name": "topic", "ip": "127.0.0.1", "port": 5555}
     ]
 
-    monkeypatch.setattr(subscriber_manager, "Subscriber", FakeSubscriber)
     manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
 
     manager.add_subscriber("topic", lambda msg: None)
 
-    assert connected == ["tcp://127.0.0.1:5555"]
+    assert patched_subscriber_class == ["tcp://127.0.0.1:5555"]
     assert "topic" in manager.subscriber_dict
 
 
 @pytest.mark.unit
-def test_check_new_node_connects_matching_subscriber_once():
+def test_check_new_node_connects_matching_subscriber_once(nodes_info_manager):
     sub = Mock()
     sub.sub_urls = []
 
-    nodes_info_manager = Mock()
-    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
     manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
     manager.subscriber_dict["topic"] = sub
     node_info = {
@@ -95,9 +110,7 @@ def test_check_new_node_connects_matching_subscriber_once():
 
 
 @pytest.mark.unit
-def test_stop_unregisters_handler_and_closes_subscribers():
-    nodes_info_manager = Mock()
-    nodes_info_manager.local_node_info = {"ip": "192.168.1.100"}
+def test_stop_unregisters_handler_and_closes_subscribers(nodes_info_manager):
     manager = SubscriberManager(Mock(), nodes_info_manager, "test_group")
     subscriber = Mock()
     manager.subscriber_dict["topic"] = subscriber

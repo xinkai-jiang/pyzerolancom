@@ -4,165 +4,210 @@
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-green)
 [![PyPI version](https://badge.fury.io/py/pyzlc.svg)](https://badge.fury.io/py/pyzlc)
 
-**pyzlc** is a lightweight, cross-environment communication framework designed for Python applications running on Local Area Networks (LAN). Built on top of [ZeroMQ](https://zguide.zeromq.org/), it features automatic node discovery, enabling nodes to dynamically find and connect to sockets from other peers without manual configuration.
+`pyzlc` is a lightweight, ROS-like communication toolkit for Python processes on trusted local networks. It uses UDP multicast for automatic node discovery and ZeroMQ for pub/sub topics and request/response services, so small nodes can find each other on the same host or on the same multicast-capable LAN without a central master.
 
-**pyzlc** eliminates the need for heavyweight frameworks like [ROS](https://www.ros.org/) or [ROS2](https://docs.ros.org/en/foxy/index.html) when you simply need to establish quick, reliable communication—whether on the same host or distributed across different machines—while maintaining a minimal dependency footprint.
+## When To Use pyzlc
 
-## 🚀 Key Features
-Zero-Config Discovery: Nodes automatically discover and update each other on the LAN using multicast heartbeats—no master node or manual IP configuration required.
+- You want ROS-style topics and services without installing or running ROS.
+- You are building small Python nodes for robotics, lab automation, sensor streaming, demos, or local distributed tools.
+- Your processes run on one host or on multiple hosts in the same trusted LAN.
+- You want automatic discovery instead of hard-coding peer addresses in every script.
 
-ROS-like API: Designed with a familiar workflow for ROS users. simply initialize a node, register your publishers/subscribers, and start communicating with minimal boilerplate.
+`pyzlc` is intentionally smaller than ROS. It does not provide ROS message generation, bags, parameters, launch files, lifecycle management, distributed security, or a full ecosystem of tools.
 
-Automatic Serialization: Native support for dictionaries, lists, and primitives via msgpack, removing the need to manually define encoders or decoders. Future support is planned for Protobuf and Flatbuffers.
+## Current Limits
 
-Async-First Architecture: Built on top of Python’s asyncio and ZeroMQ for high-performance, non-blocking asynchronous applications.
+- Discovery uses UDP multicast. Your network, OS, firewall, container runtime, or VPN must allow multicast traffic.
+- The default multicast TTL is one hop, so discovery is intended for the local LAN, not routed networks.
+- Remote node filtering currently assumes a `/24` subnet through a hard-coded `255.255.255.0` mask.
+- Topic and service sockets bind to ephemeral TCP ports, which can be inconvenient on locked-down firewalls.
+- Communication is not encrypted or authenticated. Use pyzlc on trusted networks only.
+- Integration tests for real networking are opt-in and currently represented by a skipped placeholder.
 
-Rich Logging: Integrated, color-coded logging system to simplify debugging and status monitoring.
-
-## 📦 Installation
+## Installation
 
 ```bash
 pip install pyzlc
 ```
 
-## ⚡ Quick Start
-1. Initialization
-Every script starts by initializing the singleton node.
+For local development:
 
-```python
-import pyzlc
-
-# Initialize the node with a unique name and your local IP
-pyzlc.init(node_name="MyNode", node_ip="127.0.0.1")
+```bash
+git clone <your-fork-or-repo-url>
+cd pyzlc
+pip install -e ".[test]"
+.venv/bin/python -m pytest
 ```
 
-2. Pub/Sub Pattern
-Publish messages to a specific topic and subscribe to updates.
+If you are not using the checked-in virtual environment, run `python -m pytest` with the Python environment where you installed the test extra.
 
-Publisher:
+## Quick Start: Pub/Sub
+
+Open two terminals on the same machine. Save the first script as `publisher.py`:
 
 ```python
 import pyzlc
-import time
 
 pyzlc.init("PublisherNode", "127.0.0.1")
-pub = pyzlc.Publisher("chat_room")
+pub = pyzlc.Publisher("chat")
 
+count = 0
 while True:
-    # You can send strings, dicts, or lists directly!
-    pub.publish({"user": "admin", "text": "Hello World"})
-    pyzlc.info("Message published")
+    pub.publish({"user": "publisher", "text": f"hello {count}"})
+    pyzlc.info("published message %d", count)
+    count += 1
     pyzlc.sleep(1)
 ```
-Subscriber:
+
+Save the second script as `subscriber.py`:
 
 ```python
 import pyzlc
 
-def on_chat_message(msg):
-    # msg is automatically unpacked into a python dict
-    pyzlc.info(f"Received from {msg['user']}: {msg['text']}")
 
-if __name__ == "__main__":
-    pyzlc.init("SubscriberNode", "127.0.0.1")
-    
-    # Register a callback for the topic
-    pyzlc.register_subscriber_handler("chat_room", on_chat_message)
-    
-    # Keep the node running
-    pyzlc.spin()
+def on_chat(message):
+    pyzlc.info("received from %s: %s", message["user"], message["text"])
+
+
+pyzlc.init("SubscriberNode", "127.0.0.1")
+pyzlc.register_subscriber_handler("chat", on_chat)
+pyzlc.spin()
 ```
 
-3. Service (RPC) Pattern
-Perform Request/Response communication between nodes.
+Run them:
 
-Server (Service Provider):
+```bash
+python publisher.py
+python subscriber.py
+```
+
+## Quick Start: Services
+
+Services provide request/response calls. Save this as `service_server.py`:
 
 ```python
 import pyzlc
 
-def add_two_ints(request):
-    """Takes a dict, returns the sum."""
-    result = request['a'] + request['b']
-    pyzlc.info(f"Calculated: {result}")
-    return {"sum": result}
 
-if __name__ == "__main__":
-    pyzlc.init("ServerNode", "127.0.0.1")
-    
-    # Register the service
-    pyzlc.register_service_handler("add_ints", add_two_ints)
-    
-    pyzlc.spin()
+def add_ints(request):
+    return {"sum": request["a"] + request["b"]}
+
+
+pyzlc.init("ServiceNode", "127.0.0.1")
+pyzlc.register_service_handler("add_ints", add_ints)
+pyzlc.spin()
 ```
 
-Client (Caller):
+Save this as `service_client.py`:
 
 ```python
 import pyzlc
 
 pyzlc.init("ClientNode", "127.0.0.1")
 
-# Wait for service to be discovered on the network
-pyzlc.wait_for_service("add_ints")
+if not pyzlc.wait_for_service("add_ints", timeout=5.0):
+    raise RuntimeError("service was not discovered")
 
-# Call the service synchronously
 response = pyzlc.call("add_ints", {"a": 10, "b": 20})
-print(f"Result: {response['sum']}") # Output: 30
+print(response["sum"])
 ```
 
-## 🛠 Advanced Usage
-Data Streaming
-For high-frequency data (e.g., sensor readings), use the Streamer class to publish at a fixed FPS.
+Run the server first, then the client:
+
+```bash
+python service_server.py
+python service_client.py
+```
+
+## Cross-Host Setup
+
+To run across two machines, use each machine's real LAN IP address instead of `127.0.0.1`.
+
+Example:
 
 ```python
-from pyzlc.sockets.publisher import Streamer
-import random
+# Host A, for example 192.168.1.20
+pyzlc.init("PublisherNode", "192.168.1.20")
 
-def get_sensor_data():
-    return {"temp": 20 + random.random(), "timestamp": time.time()}
-
-# Create a streamer that calls get_sensor_data() 30 times per second
-streamer = Streamer("sensor_stream", get_sensor_data, fps=30, start_streaming=True)
-
-pyzlc.spin()
+# Host B, for example 192.168.1.30
+pyzlc.init("SubscriberNode", "192.168.1.30")
 ```
 
-Custom Message Structures
-Because pyzlc uses msgpack, you can use Python TypedDict to define schemas, but you don't need special compilation steps.
+Checklist for cross-host discovery:
+
+- Put both hosts on the same multicast-capable LAN.
+- Use the IP address for the network interface that should send and receive pyzlc traffic.
+- Allow UDP multicast on port `7720`, or pass a shared `group_port` to `pyzlc.init(...)`.
+- Allow inbound TCP connections to the ephemeral ports advertised by publishers and services.
+- Keep the same `group_name`, multicast `group`, and `group_port` on nodes that should discover each other.
+- Avoid `127.0.0.1` for cross-host runs. It only refers to the current machine.
+
+Custom group example:
 
 ```python
-from typing import TypedDict, List
-
-class RobotState(TypedDict):
-    id: int
-    joints: List[float]
-    active: bool
-
-# The library handles serialization automatically
-msg: RobotState = {"id": 1, "joints": [0.1, 1.2, -0.5], "active": True}
-publisher.publish(msg)
+pyzlc.init(
+    node_name="RobotNode",
+    node_ip="192.168.1.20",
+    group_name="robot_lab",
+    group="224.0.0.1",
+    group_port=7720,
+)
 ```
 
-## 🧩 Architecture
-pyzlc uses a hybrid architecture to ensure reliability and speed:
+## API Summary
 
-- UDP Multicast: Used for node presence (Heartbeats) and discovery.
-- TCP (ZeroMQ): Used for actual data transport (PUB/SUB and REQ/REP) to ensure reliable delivery.
-- Loop Manager: A dedicated thread pool handles the asyncio event loop, allowing you to run blocking code alongside async communication if needed.
+- `pyzlc.init(node_name, node_ip, group_name=..., group=..., group_port=...)`: starts one local node and begins multicast discovery.
+- `pyzlc.Publisher(topic_name)`: advertises a topic and publishes msgpack-serializable Python values.
+- `pyzlc.register_subscriber_handler(topic_name, callback)`: subscribes to matching publishers and calls `callback(message)`.
+- `pyzlc.register_service_handler(service_name, callback)`: registers a request/response service.
+- `pyzlc.wait_for_service(service_name, timeout=5.0)`: waits for a service to appear in discovered node metadata.
+- `pyzlc.call(service_name, request, timeout=2.0)`: synchronously calls a service and returns its response, or `None` on failure.
+- `pyzlc.spin()`: blocks the main thread while background communication continues.
+- `pyzlc.shutdown()`: stops local pyzlc nodes and background workers.
 
-## 📋 Requirements
-Python 3.8+
+Messages, requests, and responses are serialized with `msgpack`. Dictionaries, lists, strings, numbers, booleans, and `None` are the safest choices.
 
-pyzmq
+## Architecture
 
-msgpack
+`pyzlc` uses a small hybrid transport:
 
-colorama
+- UDP multicast sends heartbeat packets that advertise node identity, metadata version, service port, and group name.
+- When a node sees new or changed metadata, it calls the remote built-in `get_node_info` service to fetch topics and services.
+- ZeroMQ TCP carries cross-host topic data and service calls.
+- ZeroMQ IPC is preferred automatically for same-host topic subscriptions for lower local overhead.
+- A background asyncio loop and daemon worker pool let synchronous scripts publish, subscribe, call services, and block in `spin()`.
 
-## 🧪 Testing
+## Troubleshooting
 
-Install the local test dependencies:
+No nodes are discovered:
+
+- Confirm every node uses the correct LAN IP, not `127.0.0.1`.
+- Check that both machines are in the same `/24` subnet, for example `192.168.1.x`.
+- Confirm multicast is enabled on the network. Some Wi-Fi, VPN, Docker, WSL, and cloud networks block it.
+- Allow UDP traffic on the configured `group_port`, default `7720`.
+- Use the same `group_name`, multicast `group`, and `group_port` on all related nodes.
+
+Service calls time out:
+
+- Call `pyzlc.wait_for_service(...)` before `pyzlc.call(...)`.
+- Check that the service process is still running and has called `pyzlc.spin()`.
+- Allow inbound TCP connections to the service host.
+- Increase the call timeout if the handler legitimately takes longer than the default `2.0` seconds.
+
+Duplicate service errors:
+
+- Service names must be unique within the discovered group.
+- Use different service names or separate groups for independent systems.
+
+Subscribers do not receive messages:
+
+- Start the subscriber before or shortly after the publisher, then leave both processes running.
+- Check that topic names match exactly.
+- For cross-host traffic, confirm the publisher's advertised TCP port is reachable from the subscriber host.
+
+## Development And Testing
+
+Install test dependencies:
 
 ```bash
 pip install -e ".[test]"
@@ -174,24 +219,38 @@ Run the default unit suite:
 python -m pytest
 ```
 
-Run optional integration tests that may use localhost sockets:
+The default pytest configuration excludes integration and benchmark tests:
 
 ```bash
 python -m pytest -m "integration"
-```
-
-Run optional benchmarks:
-
-```bash
-pip install -e ".[test,benchmark]"
 python -m pytest -m "benchmark" --benchmark-only
 ```
 
-Report coverage without enforcing a threshold:
+Benchmarks require the benchmark extra:
+
+```bash
+pip install -e ".[test,benchmark]"
+```
+
+Coverage report:
 
 ```bash
 python -m pytest --cov=pyzlc --cov-report=term-missing
 ```
 
+PyPI publishing is configured through GitHub Actions and runs when a `v*` tag is pushed.
+
+## Improvement Backlog
+
+These are the highest-value next improvements for making pyzlc more reliable and easier to adopt:
+
+1. Cross-host reliability: make subnet filtering configurable instead of hard-coded `/24`, expose or document multicast TTL/interface selection, and support fixed or ranged TCP ports for firewall-friendly deployments.
+2. Real integration coverage: replace the skipped network placeholder with localhost pub/sub, service call, discovery, shutdown/restart, and multi-group tests.
+3. Subscriber behavior: use `RCVHWM` for subscriber receive buffering, and define how multiple callbacks on the same topic should behave.
+4. Shutdown/resource management: track publisher sockets so `shutdown()` closes them, cancel and await background tasks cleanly, and decide whether full shutdown should terminate the shared ZeroMQ contexts.
+5. Public API polish: broaden message typing to match documented msgpack support, improve `wait_for_service_async` behavior with user event loops, and avoid masking coroutine errors with `task.__name__`.
+6. Packaging quality: add richer PyPI classifiers, project URLs, ruff configuration in `pyproject.toml`, and CI for tests across supported Python versions.
+
 ## License
-This project is licensed under the Apache License 2.0 - see the LICENSE file for details.
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.

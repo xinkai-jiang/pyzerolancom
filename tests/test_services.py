@@ -7,9 +7,27 @@ from pyzlc.sockets.service_manager import ServiceManager
 from pyzlc.utils.msg import ResponseStatus
 
 
+@pytest.fixture
+def service_manager_stub():
+    manager = ServiceManager.__new__(ServiceManager)
+    manager._running = True
+    return manager
+
+
+@pytest.fixture
+def immediate_loop_manager():
+    class FakeLoopManager:
+        async def run_in_executor(self, func, *args):
+            return func(*args)
+
+    return FakeLoopManager()
+
+
 @pytest.mark.unit
 def test_wrap_handler_unpacks_request_and_packs_response():
-    wrapped = ServiceManager._wrap_handler(lambda request: {"sum": request["a"] + request["b"]})
+    wrapped = ServiceManager._wrap_handler(
+        lambda request: {"sum": request["a"] + request["b"]}
+    )
 
     response = wrapped(msgpack.packb({"a": 2, "b": 5}, use_bin_type=True))
 
@@ -25,12 +43,9 @@ def test_wrap_handler_returns_empty_bytes_for_invalid_msgpack():
 
 
 @pytest.mark.unit
-def test_handle_request_returns_no_service_without_socket():
-    manager = ServiceManager.__new__(ServiceManager)
-    manager._running = True
-
+def test_handle_request_returns_no_service_without_socket(service_manager_stub):
     status, payload = asyncio.run(
-        manager._handle_request("missing", b"", services={})
+        service_manager_stub._handle_request("missing", b"", services={})
     )
 
     assert status == ResponseStatus.NOSERVICE.encode()
@@ -38,17 +53,14 @@ def test_handle_request_returns_no_service_without_socket():
 
 
 @pytest.mark.unit
-def test_handle_request_runs_registered_service():
-    class FakeLoopManager:
-        async def run_in_executor(self, func, *args):
-            return func(*args)
-
-    manager = ServiceManager.__new__(ServiceManager)
-    manager._running = True
-    manager.loop_manager = FakeLoopManager()
+def test_handle_request_runs_registered_service(
+    service_manager_stub,
+    immediate_loop_manager,
+):
+    service_manager_stub.loop_manager = immediate_loop_manager
 
     status, payload = asyncio.run(
-        manager._handle_request(
+        service_manager_stub._handle_request(
             "echo",
             b"payload",
             services={"echo": lambda request: request.upper()},
