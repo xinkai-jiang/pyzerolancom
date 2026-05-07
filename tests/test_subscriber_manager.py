@@ -15,29 +15,26 @@ def nodes_info_manager():
 
 @pytest.fixture
 def patched_subscriber_socket(monkeypatch):
-    socket = Mock()
-    socket.connect = Mock()
+    """Patch the Subscriber's connection and receive logic."""
+    # The new Subscriber uses asyncio connections, not ZMQ.
+    # For unit tests we just verify connect() dedup logic.
+    pass
 
+
+@pytest.fixture
+def fake_loop_manager():
     class FakeLoopManager:
         def submit_loop_task(self, task):
             task.close()
             return Mock(done=lambda: False)
 
-    class FakeSocketManager:
-        def create_async_socket(self, socket_type):
-            return socket
-
-    monkeypatch.setattr(
-        subscriber_manager.ZMQSocketManager,
-        "get_instance",
-        lambda: FakeSocketManager(),
-    )
+    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
         subscriber_manager.TaskLoopManager,
         "get_instance",
         lambda: FakeLoopManager(),
     )
-    return socket
+    return FakeLoopManager
 
 
 @pytest.fixture
@@ -61,12 +58,12 @@ def patched_subscriber_class(monkeypatch):
 
 
 @pytest.mark.unit
-def test_subscriber_connect_skips_duplicate_urls(patched_subscriber_socket):
+def test_subscriber_connect_skips_duplicate_urls(fake_loop_manager):
     sub = subscriber_manager.Subscriber("topic", lambda msg: None)
     sub.connect("tcp://127.0.0.1:1234")
     sub.connect("tcp://127.0.0.1:1234")
 
-    patched_subscriber_socket.connect.assert_called_once_with("tcp://127.0.0.1:1234")
+    assert len(sub.sub_urls) == 1
 
 
 @pytest.mark.unit

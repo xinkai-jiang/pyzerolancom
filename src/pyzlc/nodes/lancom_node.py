@@ -5,9 +5,9 @@ from typing import Optional, Dict
 from .loop_manager import TaskLoopManager
 from .multicast import MulticastWorker
 from .nodes_info_manager import NodesInfoManager
-from .zmq_socket_manager import ZMQSocketManager
 from ..sockets.service_manager import ServiceManager
 from ..sockets.subscriber_manager import SubscriberManager
+from ..transports.tcp_server import TcpServerManager
 from ..utils.msg import Empty
 from ..utils.log import _logger
 from ..utils.node_info import NodeInfo
@@ -38,6 +38,8 @@ class LanComNode:
     @classmethod
     def stop_all_nodes(cls):
         """Stop all LanCom nodes, including sub-group nodes."""
+        if not cls.node_instances and cls.default_instance is None:
+            return  # Already shut down
         for group_name, node in list(cls.node_instances.items()):
             node.stop_node()
             _logger.debug(f"Sub-node for group '{group_name}' has been stopped.")
@@ -86,18 +88,20 @@ class LanComNode:
         self.group = group
         self.group_port = group_port
         self.group_name = group_name
-        self.zmq_socket_manager: ZMQSocketManager = ZMQSocketManager.get_instance()
         self.loop_manager: TaskLoopManager = TaskLoopManager.get_instance()
         self.nodes_info_manager: NodesInfoManager = NodesInfoManager(
             node_name, node_ip, self.loop_manager
         )
+        # Single TCP server that multiplexes all pub/sub and service traffic
+        self.tcp_server = TcpServerManager(self.node_ip)
+        self.loop_manager.submit_loop_task(self.tcp_server.start())
         self.service_manager = ServiceManager(
-            f"tcp://{self.node_ip}:0", self.loop_manager
+            self.tcp_server, self.loop_manager
         )
         self.subscriber_manager = SubscriberManager(self.loop_manager, self.nodes_info_manager, self.group_name)
         self.multicast_worker = MulticastWorker(
             local_info=self.nodes_info_manager.local_node_info,
-            service_port=self.service_manager.port,
+            service_port=lambda: self.tcp_server.port,
             group=self.group,
             group_port=self.group_port,
             group_name=self.group_name,
@@ -127,6 +131,7 @@ class LanComNode:
         self.subscriber_manager.stop()
         self.multicast_worker.stop()
         self.heartbeat_future.cancel()
+        self.tcp_server.close()
         LanComNode.node_instances.pop(self.group_name, None)
         if LanComNode.default_instance is self:
             LanComNode.default_instance = None

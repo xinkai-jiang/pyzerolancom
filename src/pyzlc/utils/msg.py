@@ -7,12 +7,17 @@ from typing_extensions import TypeAlias
 import traceback
 
 import ipaddress
-import zmq
-import zmq.asyncio
 import msgpack
 
 from .node_info import HashIdentifier
 from .log import _logger
+from ..transports.protocol import (
+    SERVICE_REQUEST,
+    SERVICE_RESPONSE,
+    encode_frame,
+    encode_service_request,
+    read_frame,
+)
 
 
 def _get_zlc_version() -> str:
@@ -178,12 +183,68 @@ def create_hash_identifier() -> HashIdentifier:
     return str(uuid.uuid4())
 
 
-def get_socket_addr(
-    zmq_socket: Union[zmq.Socket, zmq.asyncio.Socket],
-) -> Tuple[str, int]:
-    """Get the address and port of a ZMQ socket."""
-    endpoint: bytes = zmq_socket.getsockopt(zmq.LAST_ENDPOINT)  # type: ignore
-    return endpoint.decode(), int(endpoint.decode().split(":")[-1])
+async def send_bytes_request(
+    addr: str, service_name: str, bytes_msgs: bytes, timeout: float
+) -> Optional[List[bytes]]:
+    """Send a bytes request to the specified address via asyncio TCP."""
+    response: Optional[List[bytes]] = None
+    reader = None
+    writer = None
+    try:
+        # addr format: tcp://host:port
+        host, port_str = addr.replace("tcp://", "").split(":")
+        port = int(port_str)
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=timeout
+        )
+        payload = encode_service_request(service_name, bytes_msgs)
+        writer.write(encode_frame(SERVICE_REQUEST, payload))
+        await writer.drain()
+
+        result = await asyncio.wait_for(read_frame(reader), timeout=timeout)
+        if result is None:
+            _logger.error("Request %s: connection closed by peer", service_name)
+            return None
+        msg_type, resp_payload = result
+        if msg_type != SERVICE_RESPONSE:
+            _logger.error(
+                "Request %s: unexpected response type 0x%02x",
+                service_name, msg_type,
+            )
+            return None
+        # resp_payload format: [status_bytes][result_bytes]
+        # Status is a variable-length string until we hit the separator
+        # For simplicity, first byte indicates status length
+        if len(resp_payload) < 1:
+            return None
+        status = resp_payload
+        result_bytes = b""
+        # Try to split on null or use the full payload as status
+        # Simple approach: the TcpServer sends [status_bytes][result_bytes] concatenated
+        # Split on known status strings
+        for known_status in [b"SUCCESS", b"NOSERVICE", b"SERVICE_FAIL",
+                              b"SERVICE_TIMEOUT", b"INVALID_REQUEST",
+                              b"UNKNOWN_ERROR", b"INVALID_RESPONSE"]:
+            if resp_payload.startswith(known_status):
+                result_bytes = resp_payload[len(known_status):]
+                status = known_status
+                break
+        response = [status, result_bytes]
+    except asyncio.TimeoutError:
+        _logger.error("Request %s timed out for %s s.", service_name, timeout)
+    except (ConnectionError, OSError) as e:
+        _logger.error("Error connecting to %s: %s", addr, e)
+    except Exception as e:
+        _logger.error("Error sending request to %s: %s", addr, e)
+        traceback.print_exc()
+    finally:
+        if writer is not None:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+    return response
 
 
 def calculate_broadcast_addr(ip_addr: str) -> str:
@@ -192,32 +253,6 @@ def calculate_broadcast_addr(ip_addr: str) -> str:
     netmask_bin = struct.unpack("!I", socket.inet_aton("255.255.255.0"))[0]
     broadcast_bin = ip_bin | ~netmask_bin & 0xFFFFFFFF
     return socket.inet_ntoa(struct.pack("!I", broadcast_bin))
-
-
-async def send_bytes_request(
-    addr: str, service_name: str, bytes_msgs: bytes, timeout: float
-) -> Optional[List[bytes]]:
-    """Send a bytes request to the specified address and return the response."""
-    response: Optional[List[bytes]] = None
-    sock: Optional[zmq.asyncio.Socket] = None
-    try:
-        sock = zmq.asyncio.Context.instance().socket(zmq.REQ)
-        sock.connect(addr)
-        # Send the message; you can also wrap this in wait_for if needed.
-        await sock.send_multipart([service_name.encode(), bytes_msgs])
-        # Wait for a response with a timeout.
-        response = await asyncio.wait_for(sock.recv_multipart(), timeout=timeout)
-        assert len(response) == 2, "Invalid response format"
-    except asyncio.TimeoutError:
-        _logger.error("Request %s timed out for %s s.", service_name, timeout)
-    except Exception as e:
-        _logger.error("Error sending request to %s: %s", addr, e)
-        traceback.print_exc()
-    finally:
-        if sock is not None:
-            sock.disconnect(addr)
-            sock.close()
-    return response
 
 
 async def send_request(

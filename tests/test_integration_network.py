@@ -66,7 +66,7 @@ def _extract_result(stdout: str):
 
 
 def test_topic_example_flow_receives_same_process_message(
-    require_local_zmq_network,
+    require_local_network,
     unique_group_name,
     unique_group_port,
     eventually,
@@ -106,7 +106,7 @@ def test_topic_example_flow_receives_same_process_message(
 
 
 def test_custom_message_example_preserves_typed_dict_payload(
-    require_local_zmq_network,
+    require_local_network,
     unique_group_name,
     unique_group_port,
     eventually,
@@ -151,7 +151,7 @@ def test_custom_message_example_preserves_typed_dict_payload(
 
 
 def test_service_example_echoes_request(
-    require_local_zmq_network,
+    require_local_network,
     unique_group_name,
     unique_group_port,
 ):
@@ -189,7 +189,7 @@ def test_service_example_echoes_request(
 
 
 def test_publisher_and_subscriber_examples_exchange_timestamp_message(
-    require_local_zmq_network,
+    require_local_network,
     python_snippet_runner,
     unique_group_name,
     unique_group_port,

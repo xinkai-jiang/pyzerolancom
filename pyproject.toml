@@ -5,10 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyzlc"
 version = "2.2.3"
-description="A lightweight ZeroMQ-based framework for high-performance, cross-environment communication across Local Area Networks."
+description="A lightweight framework for high-performance, cross-environment communication across Local Area Networks."
 dependencies = [
     "msgpack",
-    "pyzmq",
     "colorama",
     "typing-extensions",
 ]

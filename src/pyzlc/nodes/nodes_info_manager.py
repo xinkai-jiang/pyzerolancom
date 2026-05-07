@@ -204,10 +204,12 @@ class NodesInfoManager:
                 removed_nodes = []
                 for node_id, last_heartbeat in self.nodes_heartbeat.items():
                     if time.monotonic() - last_heartbeat > 3:
-                        _logger.warning(
-                            "Node %s is considered offline",
-                            self.nodes_info[node_id]["name"],
-                        )
+                        node_info = self.nodes_info.get(node_id)
+                        if node_info is not None:
+                            _logger.warning(
+                                "Node %s is considered offline",
+                                node_info["name"],
+                            )
                         removed_nodes.append(node_id)
                 for node_id in removed_nodes:
                     self.remove_node(node_id)

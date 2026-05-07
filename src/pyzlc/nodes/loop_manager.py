@@ -17,7 +17,7 @@ TaskReturnT = TypeVar("TaskReturnT")
 TaskPayload = Tuple[Future, Callable[..., Any], Tuple[Any, ...], Dict[str, Any]]
 
 
-class DaemonThreadPoolExecutor:
+class DaemonThreadPoolExecutor(concurrent.futures.Executor):
     def __init__(self, max_workers=5):
         """
         Initialize the executor with a maximum number of worker threads.
@@ -91,7 +91,7 @@ class DaemonThreadPoolExecutor:
         if current_t in self._threads:
             self._threads.remove(current_t)
 
-    def shutdown(self, wait=True):
+    def shutdown(self, wait=True, *, cancel_futures=False):
         """
         Signal the executor to stop. 
         If wait is True, block until all pending tasks are finished.

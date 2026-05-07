@@ -1,14 +1,12 @@
 """
-pyzlc: A lightweight Python library for LanCom communication based on ZeroMQ.
+pyzlc: A lightweight Python library for LanCom communication.
 
 This package provides high-level utilities for node initialization,
 message spinning, and service registration.
 """
 
 from __future__ import annotations
-import asyncio
 import atexit
-import platform
 from typing import Callable, Any, Optional, List, Coroutine, Union
 import time
 import concurrent.futures
@@ -20,11 +18,6 @@ from .sockets.service_client import call, async_call
 from .sockets.publisher import Publisher, Streamer
 from .utils.msg import Empty, empty, _get_zlc_version
 from .utils.log import _logger, LogLevel
-
-
-# Fix for Windows event loop to avoid ZMQ warnings
-if platform.system() == "Windows":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())  # type: ignore
 
 __version__ = _get_zlc_version()
 __author__ = "Xinkai Jiang"

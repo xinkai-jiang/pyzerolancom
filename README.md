@@ -4,7 +4,7 @@
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-green)
 [![PyPI version](https://badge.fury.io/py/pyzlc.svg)](https://badge.fury.io/py/pyzlc)
 
-`pyzlc` is a lightweight, ROS-like communication toolkit for Python processes on trusted local networks. It uses UDP multicast for automatic node discovery and ZeroMQ for pub/sub topics and request/response services, so small nodes can find each other on the same host or on the same multicast-capable LAN without a central master.
+`pyzlc` is a lightweight, ROS-like communication toolkit for Python processes on trusted local networks. It uses UDP multicast for automatic node discovery and asyncio TCP streams for pub/sub topics and request/response services, so small nodes can find each other on the same host or on the same multicast-capable LAN without a central master.
 
 ## When To Use pyzlc
 
@@ -20,7 +20,7 @@
 - Discovery uses UDP multicast. Your network, OS, firewall, container runtime, or VPN must allow multicast traffic.
 - The default multicast TTL is one hop, so discovery is intended for the local LAN, not routed networks.
 - Remote node filtering currently assumes a `/24` subnet through a hard-coded `255.255.255.0` mask.
-- Topic and service sockets bind to ephemeral TCP ports, which can be inconvenient on locked-down firewalls.
+- All traffic (pub/sub + services) uses a single ephemeral TCP port per node, which can be inconvenient on locked-down firewalls.
 - Communication is not encrypted or authenticated. Use pyzlc on trusted networks only.
 - Integration tests for real networking are opt-in and currently represented by a skipped placeholder.
 
@@ -173,8 +173,8 @@ Messages, requests, and responses are serialized with `msgpack`. Dictionaries, l
 
 - UDP multicast sends heartbeat packets that advertise node identity, metadata version, service port, and group name.
 - When a node sees new or changed metadata, it calls the remote built-in `get_node_info` service to fetch topics and services.
-- ZeroMQ TCP carries cross-host topic data and service calls.
-- ZeroMQ IPC is preferred automatically for same-host topic subscriptions for lower local overhead.
+- asyncio TCP carries cross-host topic data and service calls on a single port per node.
+- Unix domain sockets (IPC) are used automatically for same-host topic subscriptions for lower local overhead.
 - A background asyncio loop and daemon worker pool let synchronous scripts publish, subscribe, call services, and block in `spin()`.
 
 ## Troubleshooting
@@ -247,7 +247,7 @@ These are the highest-value next improvements for making pyzlc more reliable and
 1. Cross-host reliability: make subnet filtering configurable instead of hard-coded `/24`, expose or document multicast TTL/interface selection, and support fixed or ranged TCP ports for firewall-friendly deployments.
 2. Real integration coverage: replace the skipped network placeholder with localhost pub/sub, service call, discovery, shutdown/restart, and multi-group tests.
 3. Subscriber behavior: use `RCVHWM` for subscriber receive buffering, and define how multiple callbacks on the same topic should behave.
-4. Shutdown/resource management: track publisher sockets so `shutdown()` closes them, cancel and await background tasks cleanly, and decide whether full shutdown should terminate the shared ZeroMQ contexts.
+4. Shutdown/resource management: track publisher sockets so `shutdown()` closes them, cancel and await background tasks cleanly, and ensure the shared TCP server is properly shut down.
 5. Public API polish: broaden message typing to match documented msgpack support, improve `wait_for_service_async` behavior with user event loops, and avoid masking coroutine errors with `task.__name__`.
 6. Packaging quality: add richer PyPI classifiers, project URLs, ruff configuration in `pyproject.toml`, and CI for tests across supported Python versions.
 

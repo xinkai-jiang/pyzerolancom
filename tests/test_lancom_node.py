@@ -41,6 +41,8 @@ def test_stop_node_unregisters_default_instance():
     node.subscriber_manager = Mock()
     node.multicast_worker = Mock()
     node.heartbeat_future = Mock()
+    node.tcp_server = Mock()
+    node.loop_manager = Mock()
     LanComNode.node_instances["group"] = node
     LanComNode.default_instance = node
 

@@ -127,7 +127,7 @@ def python_snippet_runner():
 
 
 @pytest.fixture
-def require_local_zmq_network(
+def require_local_network(
     python_snippet_runner,
     unique_group_name,
     unique_group_port,
@@ -150,9 +150,9 @@ pyzlc.shutdown()
     if result.returncode == 0:
         return
     if "Operation not permitted" in output:
-        pytest.skip(f"local ZeroMQ/multicast is not permitted: {output.strip()}")
+        pytest.skip(f"local network/multicast is not permitted: {output.strip()}")
     pytest.fail(
-        "local ZeroMQ/multicast probe failed\n"
+        "local network/multicast probe failed\n"
         f"returncode: {result.returncode}\n"
         f"stdout:\n{result.stdout}\n"
         f"stderr:\n{result.stderr}"

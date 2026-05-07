@@ -1,17 +1,14 @@
 from __future__ import annotations
 import os
-import time
-import traceback
-from asyncio import sleep as async_sleep
 from typing import Callable, Optional
 
-import zmq
 import msgpack
 
-from ..nodes.zmq_socket_manager import ZMQSocketManager
 from ..utils.log import _logger
 from ..nodes.lancom_node import LanComNode
-from ..utils.msg import MessageT, get_socket_addr
+from ..utils.msg import MessageT
+from ..transports.ipc_server import IpcServer
+from ..transports.tcp_server import TcpServerManager
 
 
 class Publisher:
@@ -22,24 +19,35 @@ class Publisher:
         node = LanComNode.get_instance(group_name)
         self.loop_manager = node.loop_manager
         nodes_info_manager = node.nodes_info_manager
-        local_node_info = nodes_info_manager.local_node_info
-        self._socket = ZMQSocketManager.get_instance().create_socket(zmq.PUB)
-        self._socket.setsockopt(zmq.SNDHWM, buffer_size)
-        self._socket.bind(f"tcp://{local_node_info['ip']}:0")
-        self.url, self.port = get_socket_addr(self._socket)
+        self._tcp_server: TcpServerManager = node.tcp_server
+
+        # IPC server for same-host optimization
         ipc_dir = f"/tmp/zlc/{node.group_name}/{topic_name}"
         os.makedirs(ipc_dir, exist_ok=True)
-        self._socket.bind(f"ipc://{ipc_dir}/topic.sock")
+        self._ipc_server = IpcServer(f"{ipc_dir}/topic.sock")
+        self.loop_manager.submit_loop_task(self._ipc_server.start())
+
+        # Use the shared TCP server's port (all topics share one port)
+        self.url = f"tcp://{node.node_ip}:{self._tcp_server.port}"
+        self.port = self._tcp_server.port
         nodes_info_manager.register_local_publisher(self.name, self.port)
 
-    def publish(self, msg: MessageT, copy: bool = True) -> None:
-        """Publish a message in bytes."""
-        msgpacked = msgpack.packb(msg)
-        self._socket.send(msgpacked, copy=copy)
+    def publish(self, msg: MessageT) -> None:
+        """Publish a message. Schedules fan-out to TCP and IPC clients."""
+        msgpacked: bytes = msgpack.packb(msg, use_bin_type=True)  # type: ignore[assignment]
+        # Schedule both TCP and IPC fan-out on the event loop
+        self.loop_manager.submit_loop_task(
+            self._publish_async(msgpacked)
+        )
+
+    async def _publish_async(self, data: bytes) -> None:
+        """Fan out to TCP subscribers and IPC subscribers."""
+        await self._tcp_server.publish_topic(self.name, data)
+        await self._ipc_server.publish(self.name, data)
 
     def on_shutdown(self) -> None:
-        """Shutdown the publisher socket."""
-        self._socket.close()
+        """Shutdown the publisher."""
+        self._ipc_server.close()
 
 
 class Streamer(Publisher):
@@ -68,6 +76,10 @@ class Streamer(Publisher):
     async def update_loop(self) -> None:
         """Streams messages at the specified rate."""
         self.running = True
+        import time
+        import traceback
+        from asyncio import sleep as async_sleep
+
         last = 0.0
         _logger.info("Topic %s starts streaming", self.name)
         while self.running:

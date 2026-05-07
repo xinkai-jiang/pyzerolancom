@@ -4,7 +4,7 @@ import socket
 import struct
 import threading
 import traceback
-from typing import Tuple, Optional
+from typing import Callable, Tuple, Union, Optional
 
 from ..nodes.nodes_info_manager import NodesInfoManager
 from ..utils.log import _logger
@@ -23,7 +23,7 @@ class MulticastWorker:
     def __init__(
         self,
         local_info: NodeInfo,
-        service_port: int,
+        service_port: Union[int, Callable[[], int]],
         group: str,
         group_port: int,
         group_name: str,
@@ -32,7 +32,14 @@ class MulticastWorker:
     ) -> None:
         self.local_info = local_info
         self.local_ip = local_info["ip"]
-        self.service_port = service_port
+        # Accept either a static port or a callable that returns the current port.
+        # The callable form is used to dynamically read the TCP server port,
+        # which may not be available until after the server has started.
+        self._get_service_port: Callable[[], int]
+        if callable(service_port):
+            self._get_service_port = service_port
+        else:
+            self._get_service_port = lambda: service_port
         self.group = group
         self.group_port = group_port
         self.group_name = group_name
@@ -80,15 +87,13 @@ class MulticastWorker:
         sock.setsockopt(
             socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.local_ip)
         )
-        _service_port = self.service_port
-
         while not self._stop_event.is_set():
             try:
                 msg = HeartbeatMessage(
                     zlc_version=self.protocol_version,
                     node_id=self.local_info["nodeID"],
                     info_id=self.local_info["infoID"],
-                    service_port=_service_port,
+                    service_port=self._get_service_port(),
                     group_name=self.group_name,
                 )
                 sock.sendto(msg.to_bytes(), (self.group, self.group_port))
