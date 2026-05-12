@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import Mock
 
 import pytest
@@ -92,6 +93,89 @@ def test_check_new_node_connects_matching_subscriber_once():
     manager.check_new_node(node_info)
 
     sub.connect.assert_called_once_with("tcp://127.0.0.1:6000")
+
+
+@pytest.mark.unit
+def test_receive_loop_survives_bad_message():
+    """The receive loop should continue running after a malformed message."""
+    from pyzlc.sockets.subscriber_manager import Subscriber
+
+    recv_count = 0
+
+    class FakeSocket:
+        async def recv(self):
+            nonlocal recv_count
+            recv_count += 1
+            if recv_count == 1:
+                return b"\x99\x99"  # invalid msgpack
+            if recv_count == 2:
+                import msgpack
+                return msgpack.packb({"ok": True})
+            await asyncio.sleep(0.5)
+            return b""
+
+    sub = Subscriber.__new__(Subscriber)
+    sub._socket = FakeSocket()
+    sub.name = "test_topic"
+    sub.running = True
+    sub.callback = lambda msg: None
+
+    async def drive():
+        task = asyncio.create_task(sub.receive_loop())
+        await asyncio.sleep(0.1)
+        sub.running = False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(drive())
+    assert recv_count >= 2  # loop kept going after bad message
+
+
+@pytest.mark.unit
+def test_receive_loop_survives_callback_error():
+    """The receive loop should continue running after a callback raises."""
+    from pyzlc.sockets.subscriber_manager import Subscriber
+
+    recv_count = 0
+
+    class FakeSocket:
+        async def recv(self):
+            nonlocal recv_count
+            recv_count += 1
+            import msgpack
+            if recv_count <= 2:
+                return msgpack.packb({"n": recv_count})
+            await asyncio.sleep(0.5)
+            return b""
+
+    callback_errors = []
+
+    def bad_callback(msg):
+        callback_errors.append(msg)
+        raise RuntimeError("callback boom")
+
+    sub = Subscriber.__new__(Subscriber)
+    sub._socket = FakeSocket()
+    sub.name = "test_topic"
+    sub.running = True
+    sub.callback = bad_callback
+
+    async def drive():
+        task = asyncio.create_task(sub.receive_loop())
+        await asyncio.sleep(0.1)
+        sub.running = False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(drive())
+    assert recv_count >= 2  # loop kept going
+    assert len(callback_errors) == 2
 
 
 @pytest.mark.unit

@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 from typing import Callable, Dict, List, Any, Optional
 from concurrent.futures import Future
@@ -70,21 +71,21 @@ class Subscriber:
         _logger.info("Subscriber %s is subscribing ...", self.name)
         while self.running:
             try:
-                # events = await self._socket.poll()
-                # if not events:
-                #     continue
                 msg = await self._socket.recv()
-                self.callback(msgpack.unpackb(msg))
-            # except asyncio.CancelledError:
-            #     _logger.info("Receive loop for subscriber %s cancelled...", self.name)
-            #     break
-            # except KeyboardInterrupt:
-            #     _logger.info("Receive loop for subscriber %s interrupted by user...", self.name)
-            #     break
+            except asyncio.CancelledError:
+                break
             except Exception as e:
-                _logger.error("Error from topic %s subscriber: %s", self.name, e)
+                _logger.error("Error receiving from topic %s: %s", self.name, e)
                 traceback.print_exc()
-                raise e
+                continue
+
+            try:
+                self.callback(msgpack.unpackb(msg))
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                _logger.error("Error in callback for topic %s: %s", self.name, e)
+                traceback.print_exc()
 
     def close(self) -> None:
         """Close the subscriber socket."""
