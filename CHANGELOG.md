@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.4] - 2026-05-18
+
+### Fixed
+- Prevent subscriber receive loop from crashing on transient errors
+- Set permissions for IPC socket and improve connection URL logic in subscriber manager
+- Log received datagram details in multicast worker
+
 ## [2.2.3] - 2026-05-05
 
 ### Added
