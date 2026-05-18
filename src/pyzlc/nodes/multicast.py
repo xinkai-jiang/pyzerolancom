@@ -146,6 +146,7 @@ class MulticastWorker:
     def _handle_datagram(self, data: bytes, addr: Tuple[str, int]):
         """Handle incoming multicast discovery messages."""
         try:
+            _logger.debug("Received datagram from %s:%s", addr[0], addr[1])
             node_ip = addr[0]
             if not is_in_same_subnet(self.local_ip, node_ip):
                 return
