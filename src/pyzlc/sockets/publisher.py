@@ -30,6 +30,7 @@ class Publisher:
         ipc_dir = f"/tmp/zlc/{node.group_name}/{topic_name}"
         os.makedirs(ipc_dir, exist_ok=True)
         self._socket.bind(f"ipc://{ipc_dir}/topic.sock")
+        os.chmod(f"{ipc_dir}/topic.sock", 0o666)
         nodes_info_manager.register_local_publisher(self.name, self.port)
 
     def publish(self, msg: MessageT, copy: bool = True) -> None:

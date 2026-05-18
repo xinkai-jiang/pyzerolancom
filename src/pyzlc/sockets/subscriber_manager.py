@@ -1,4 +1,5 @@
 import asyncio
+import os
 import traceback
 from typing import Callable, Dict, List, Any, Optional
 from concurrent.futures import Future
@@ -111,11 +112,13 @@ class SubscriberManager:
     def _get_connect_url(self, info: SocketInfo) -> str:
         """Determine the connection URL for a publisher info entry.
 
-        If the publisher is on the same host, use IPC for better performance.
-        Otherwise, use TCP.
+        If the publisher is on the same host and the IPC socket file exists,
+        use IPC for better performance. Otherwise, use TCP.
         """
         if info["ip"] == self.local_ip:
-            return f"ipc:///tmp/zlc/{self.group_name}/{info['name']}/topic.sock"
+            ipc_path = f"/tmp/zlc/{self.group_name}/{info['name']}/topic.sock"
+            if os.path.exists(ipc_path):
+                return f"ipc://{ipc_path}"
         return f"tcp://{info['ip']}:{info['port']}"
 
     def add_subscriber(
